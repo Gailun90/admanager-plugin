@@ -1,0 +1,297 @@
+<div class="adm-page">
+  <input type="hidden" id="vuln-csrf" value="{{ csrf_token }}">
+
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/vuln_import.php"><i class="ti ti-file-import me-1"></i>导入记录</a></li>
+    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/vuln_tasks.php"><i class="ti ti-list-check me-1"></i>待处理任务</a></li>
+    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/vuln_rules.php"><i class="ti ti-book me-1"></i>QID规则库</a></li>
+    <li class="nav-item"><a class="nav-link active" href="/plugins/admanager/front/vuln_correct.php"><i class="ti ti-message-chatbot me-1"></i>对话纠正</a></li>
+    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/agent.php"><i class="ti ti-robot me-1"></i>AI Agent</a></li>
+  </ul>
+
+  <div class="alert alert-info py-2 small mb-3">
+    <i class="ti ti-info-circle me-1"></i>
+    AI 修复方案执行<b class="text-danger">失败</b>或<b class="text-danger">需回滚</b>时，在此纠正。
+    点<b>AI 对话</b>用自然语言描述修复方式，AI 生成结构化动作供确认后下发。
+  </div>
+
+  <h6 class="text-uppercase text-muted mb-2"><i class="ti ti-alert-triangle me-1"></i>需纠正的任务（{{ tasks|length }}）</h6>
+  {% if tasks is empty %}
+  <div class="text-center text-muted py-4"><i class="ti ti-check" style="font-size:2rem"></i><p class="mt-2">暂无任务</p></div>
+  {% else %}
+  <div class="table-responsive mb-4">
+    <table class="table table-sm table-hover align-top">
+      <thead class="table-light"><tr>
+        <th style="width:50px">#</th><th style="width:110px">QID</th><th>标题</th>
+        <th style="width:80px">状态</th><th style="width:70px">类型</th>
+        <th style="width:50px">风险</th><th style="width:110px">终端</th>
+        <th style="width:50px">在线</th><th style="width:100px">操作</th>
+      </tr></thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr class="{{ t.status == 'rollback_required' ? 'table-warning' : (t.status == 'failed' ? 'table-danger' : '') }}">
+          <td>{{ t.id }}</td>
+          <td><code>{{ t.qid|default('—') }}</code></td>
+          <td class="small">{{ t.title|default('—') }}</td>
+          <td><span class="badge {{ t.status == 'rollback_required' ? 'bg-warning text-dark' : (t.status == 'failed' ? 'bg-danger' : 'bg-secondary') }}">{{ t.status_label }}</span></td>
+          <td><span class="badge bg-light text-dark">{{ t.fix_label }}</span></td>
+          <td><span class="badge {{ t.risk_level == 'high' ? 'bg-danger' : (t.risk_level == 'medium' ? 'bg-warning text-dark' : 'bg-success') }}">{{ t.risk_label }}</span></td>
+          <td class="small">{{ t.asset_hostname|default(t.dns_name|default(t.ip|default('—'))) }}</td>
+          <td>{% if t.is_online is same as(true) %}<span class="badge bg-success p-1"><i class="ti ti-wifi"></i></span>{% elseif t.is_online is same as(false) %}<span class="badge bg-secondary p-1">离线</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td style="white-space:nowrap">
+            {% if can_write %}
+            <button class="btn btn-xs btn-outline-primary correct-btn" data-id="{{ t.id }}" data-qid="{{ t.qid|default('') }}" data-fix-type="{{ t.fix_type|default('') }}" data-title="{{ t.title|default('') }}" data-action="{{ t.action_json|default({})|json_encode }}"><i class="ti ti-edit"></i></button>
+            <button class="btn btn-xs btn-outline-info ai-chat-btn ms-1" data-id="{{ t.id }}" data-qid="{{ t.qid|default('') }}" data-fix-type="{{ t.fix_type|default('') }}" data-title="{{ t.title|default('') }}" data-action="{{ t.action_json|default({})|json_encode }}"><i class="ti ti-message-chatbot"></i></button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <h6 class="text-uppercase text-muted mb-2 mt-3"><i class="ti ti-database me-1"></i>纠正缓存（{{ corrections|length }}）</h6>
+  {% if corrections is empty %}
+  <div class="text-center text-muted py-3"><p>暂无纠正缓存</p></div>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-top">
+      <thead class="table-light"><tr>
+        <th style="width:50px">#</th><th style="width:110px">QID</th><th style="width:80px">类型</th>
+        <th>纠正动作</th><th style="width:50px">用量</th><th>备注</th><th style="width:100px">操作</th>
+      </tr></thead>
+      <tbody>
+        {% for c in corrections %}
+        <tr>
+          <td>{{ c.id }}</td><td><code>{{ c.qid }}</code></td>
+          <td><span class="badge bg-light text-dark">{{ c.fix_label }}</span></td>
+          <td class="small"><details><summary class="text-muted">查看</summary><pre class="small mt-1 p-2 rounded bg-light">{{ c.corrected_action|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_UNICODE')) }}</pre></details></td>
+          <td><span class="badge bg-info text-dark">{{ c.usage_count|default(0) }}</span></td>
+          <td class="small text-muted">{{ c.note|default('—') }}</td>
+          <td>
+            {% if can_write %}
+            {% if c.rule_id is empty %}<button class="btn btn-xs btn-outline-success promote-btn" data-id="{{ c.id }}" data-qid="{{ c.qid }}"><i class="ti ti-arrow-up"></i></button>{% else %}<span class="badge bg-success">已沉淀</span>{% endif %}
+            <button class="btn btn-xs btn-outline-danger del-corr-btn ms-1" data-id="{{ c.id }}"><i class="ti ti-trash"></i></button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+{# ── 手动纠正弹窗 ── #}
+<div class="modal fade" id="correctModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="ti ti-edit me-1"></i>手动纠正</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="correct_task_id">
+        <p class="mb-3"><span class="badge bg-secondary" id="correct_qid_badge"></span> <span class="text-muted small ms-1" id="correct_title"></span></p>
+        <div class="mb-3"><label class="form-label fw-bold small">修复类型</label><select id="correct_fix_type" class="form-select form-select-sm">
+          <option value="registry_fix">注册表修复</option><option value="software_upgrade">软件升级</option>
+          <option value="software_uninstall">软件卸载</option><option value="patch_install">补丁安装</option>
+          <option value="manual_review">人工处理</option><option value="unsupported">暂不支持</option>
+          <option value="shell_exec">远程命令</option>
+        </select></div>
+        <div class="mb-3"><label class="form-label fw-bold small">纠正动作 JSON</label>
+          <textarea id="correct_action" class="form-control font-monospace small" rows="10"></textarea></div>
+        <div class="mb-3"><label class="form-label fw-bold small">备注</label>
+          <input type="text" id="correct_note" class="form-control form-control-sm"></div>
+        <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="correct_promote"><label class="form-check-label small" for="correct_promote">沉淀为正式规则</label></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" id="correct_submit" class="btn btn-primary"><i class="ti ti-check me-1"></i>提交</button></div>
+    </div>
+  </div>
+</div>
+
+{# ── AI 对话弹窗 ── #}
+<div class="modal fade" id="aiChatModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title"><i class="ti ti-message-chatbot me-1"></i>AI 对话纠正</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="ai_task_id">
+        <p class="mb-2"><span class="badge bg-secondary" id="ai_qid_badge"></span> <span class="badge bg-light text-dark ms-1" id="ai_current_fix"></span><br><span class="text-muted small" id="ai_title"></span></p>
+        <div id="ai_chat_area" class="border rounded p-3 mb-3" style="min-height:80px;max-height:300px;overflow-y:auto"></div>
+        <div id="ai_input_area" class="input-group mb-2">
+          <textarea id="ai_instruction" class="form-control form-control-sm" rows="2" placeholder="如：卸载 XX 软件 / 删除注册表键 HKLM\...\xxx"></textarea>
+          <button type="button" id="ai_send" class="btn btn-primary btn-sm"><i class="ti ti-send"></i></button>
+        </div>
+        <div id="ai_proposal" class="d-none">
+          <div class="card mt-2 mb-0">
+            <div class="card-body p-2">
+            <h6 class="small fw-bold text-primary mb-1"><i class="ti ti-sparkles me-1"></i>AI 建议</h6>
+            <p class="mb-1"><span class="badge bg-primary" id="ai_proposed_fix_type"></span> <span class="badge bg-secondary ms-1" id="ai_proposed_risk"></span>
+              <span class="badge bg-success ms-1" id="ai_validation_ok">闸门通过</span><span class="badge bg-danger ms-1 d-none" id="ai_validation_fail"></span></p>
+            <pre class="small p-2 rounded mb-2 text-dark" id="ai_proposed_action" style="background:#e9ecef;max-height:200px;overflow:auto"></pre>
+            <button type="button" id="ai_apply" class="btn btn-success btn-sm"><i class="ti ti-check me-1"></i>确认下发</button>
+            <button type="button" id="ai_retry" class="btn btn-outline-secondary btn-sm ms-1"><i class="ti ti-arrow-left me-1"></i>重试</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="correctMsg" class="d-none position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index:9999"></div>
+
+<script>
+var csrf = function() { return document.getElementById('vuln-csrf').value; };
+var ajax = function(action, data, cb) {
+  var fd = new FormData();
+  fd.append('_glpi_csrf_token', csrf());
+  fd.append('_action', action);
+  for (var k in data) fd.append(k, data[k]);
+  fetch(location.pathname, { method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'} })
+    .then(function(r){ return r.json(); }).then(cb).catch(function(e){ alert('网络错误：'+e.message); });
+};
+var showMsg = function(msg, type) {
+  var el = document.getElementById('correctMsg');
+  el.className = 'position-fixed top-0 start-50 translate-middle-x mt-3';
+  el.style.zIndex = 9999;
+  el.innerHTML = '<div class="alert alert-'+(type||'info')+' py-2 px-3 shadow">'+msg+'</div>';
+  el.classList.remove('d-none');
+  setTimeout(function(){ el.classList.add('d-none'); }, 3000);
+};
+var showModal = function(id) { bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show(); };
+var hideModal = function(id) { var m = bootstrap.Modal.getInstance(document.getElementById(id)); if(m) m.hide(); };
+
+// ── 手动纠正 ──
+document.querySelectorAll('.correct-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('correct_task_id').value = btn.dataset.id;
+    document.getElementById('correct_qid_badge').textContent = 'QID: ' + btn.dataset.qid;
+    document.getElementById('correct_title').textContent = btn.dataset.title;
+    document.getElementById('correct_fix_type').value = btn.dataset.fixType;
+    var act = btn.dataset.action;
+    try { act = JSON.stringify(JSON.parse(act), null, 2); } catch(e) {}
+    document.getElementById('correct_action').value = act;
+    document.getElementById('correct_note').value = '';
+    document.getElementById('correct_promote').checked = false;
+    showModal('correctModal');
+  });
+});
+
+document.getElementById('correct_submit').addEventListener('click', function() {
+  var btn = this; btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  ajax('correct_task', {
+    task_id: document.getElementById('correct_task_id').value,
+    fix_type: document.getElementById('correct_fix_type').value,
+    corrected_action: document.getElementById('correct_action').value,
+    note: document.getElementById('correct_note').value,
+    promote_to_rule: document.getElementById('correct_promote').checked ? '1' : '0'
+  }, function(res) {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-check me-1"></i>提交';
+    if (res.ok) { hideModal('correctModal'); showMsg(res.message, 'success'); setTimeout(function(){ location.reload(); }, 1200); }
+    else showMsg(res.message, 'danger');
+  });
+});
+
+// ── 纠正缓存 ──
+document.querySelectorAll('.promote-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (!confirm('沉淀 #' + btn.dataset.id + ' 为正式规则？')) return;
+    ajax('promote_correction', { corr_id: btn.dataset.id }, function(res) { alert(res.message); if (res.ok) location.reload(); });
+  });
+});
+document.querySelectorAll('.del-corr-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (!confirm('删除纠正 #' + btn.dataset.id + '？')) return;
+    ajax('delete_correction', { corr_id: btn.dataset.id }, function(res) { alert(res.message); if (res.ok) location.reload(); });
+  });
+});
+
+// ── AI 对话纠正 ──
+var aiProposal = null;
+function resetAiModal() {
+  var area = document.getElementById('ai_chat_area');
+  if (!area) return;
+  area.innerHTML = '<div class="text-center text-muted small py-3"><i class="ti ti-message-plus" style="font-size:1.5rem"></i><br>描述修复方式，AI 生成动作供确认</div>';
+  var inp = document.getElementById('ai_instruction'); if (inp) inp.value = '';
+  var prop = document.getElementById('ai_proposal'); if (prop) prop.classList.add('d-none');
+  var iar = document.getElementById('ai_input_area'); if (iar) iar.classList.remove('d-none');
+  aiProposal = null;
+}
+
+document.querySelectorAll('.ai-chat-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    resetAiModal();
+    document.getElementById('ai_task_id').value = btn.dataset.id;
+    document.getElementById('ai_qid_badge').textContent = 'QID: ' + btn.dataset.qid;
+    document.getElementById('ai_title').textContent = btn.dataset.title;
+    document.getElementById('ai_current_fix').textContent = btn.dataset.fixType;
+    showModal('aiChatModal');
+  });
+});
+
+document.getElementById('ai_send').addEventListener('click', function() {
+  var btn = this;
+  var instruction = document.getElementById('ai_instruction').value.trim();
+  if (!instruction) return;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  var area = document.getElementById('ai_chat_area');
+  area.innerHTML += '<div class="text-end mb-2"><span class="badge bg-primary">我</span> <span class="small">'+instruction.replace(/</g,'&lt;')+'</span></div>';
+  ajax('ai_correct', { task_id: document.getElementById('ai_task_id').value, instruction: instruction },
+    function(res) {
+      btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i>';
+      if (!res.ok) { area.innerHTML += '<div class="mb-2"><span class="badge bg-danger">AI</span> <span class="small text-danger">'+(res.message||'失败')+'</span></div>'; return; }
+      var d = res.data; aiProposal = d;
+      var ftMap = {'registry_fix':'注册表修复','software_upgrade':'软件升级','software_uninstall':'软件卸载','patch_install':'补丁安装','manual_review':'人工处理','unsupported':'暂不支持','shell_exec':'远程命令'};
+      var ftLabel = ftMap[d.fix_type] || d.fix_type;
+      area.innerHTML += '<div class="mb-2"><span class="badge bg-info text-dark">AI</span> <span class="small">建议：<b>'+ftLabel+'</b>（风险: '+(d.risk_level||'中')+'）'+(d.validation_ok?' ✅':' ⚠️ '+(d.validation_reason||''))+'</span></div>';
+      document.getElementById('ai_proposed_fix_type').textContent = ftLabel;
+      document.getElementById('ai_proposed_risk').textContent = '风险: '+(d.risk_level||'medium');
+      var okBadge = document.getElementById('ai_validation_ok'), failBadge = document.getElementById('ai_validation_fail');
+      if (d.validation_ok) { okBadge.classList.remove('d-none'); failBadge.classList.add('d-none'); }
+      else { okBadge.classList.add('d-none'); failBadge.textContent = d.validation_reason||'校验未通过'; failBadge.classList.remove('d-none'); }
+      document.getElementById('ai_proposed_action').textContent = JSON.stringify(d.action_json||{}, null, 2);
+      document.getElementById('ai_proposal').classList.remove('d-none');
+      document.getElementById('ai_input_area').classList.add('d-none');
+    });
+});
+
+document.getElementById('ai_apply').addEventListener('click', function() {
+  if (!aiProposal) return;
+  var btn = this; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  // 确保 action_json 是对象（AI 可能返回字符串）
+  var actData = aiProposal.action_json || {};
+  if (typeof actData === 'string') { try { actData = JSON.parse(actData); } catch(e) { actData = {}; } }
+  if (typeof actData !== 'object' || actData === null) { actData = {}; }
+  ajax('correct_task', {
+    task_id: document.getElementById('ai_task_id').value,
+    fix_type: aiProposal.fix_type,
+    corrected_action: JSON.stringify(actData),
+    note: 'AI 对话纠正', promote_to_rule: '0'
+  }, function(res) {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-check me-1"></i>确认下发';
+    if (res.ok) { hideModal('aiChatModal'); showMsg(res.message, 'success'); setTimeout(function(){ location.reload(); }, 1200); }
+    else showMsg(res.message, 'danger');
+  });
+});
+
+document.getElementById('ai_retry').addEventListener('click', function() {
+  document.getElementById('ai_proposal').classList.add('d-none');
+  document.getElementById('ai_input_area').classList.remove('d-none');
+  document.getElementById('ai_instruction').value = '';
+  document.getElementById('ai_instruction').focus();
+  aiProposal = null;
+});
+
+document.getElementById('ai_instruction').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('ai_send').click(); }
+});
+
+// Modal hidden → reset state
+document.getElementById('aiChatModal').addEventListener('hidden.bs.modal', function() { resetAiModal(); });
+document.getElementById('correctModal').addEventListener('hidden.bs.modal', function() {
+  document.getElementById('correct_note').value = '';
+  document.getElementById('correct_promote').checked = false;
+});
+</script>

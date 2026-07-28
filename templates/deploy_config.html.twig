@@ -1,0 +1,285 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_new_task.php">
+        <i class="ti ti-send me-1"></i>新建部署任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy.php">
+        <i class="ti ti-list-check me-1"></i>部署任务列表
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_package.php">
+        <i class="ti ti-package me-1"></i>安装包库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/deploy_config.php">
+        <i class="ti ti-settings-cog me-1"></i>部署配置
+      </a>
+    </li>
+  </ul>
+
+  <div class="row">
+    <div class="col-12 col-lg-8">
+
+      {% if flash %}
+      <div class="alert alert-{{ flash_type }} alert-dismissible fade show" role="alert">
+        {{ flash }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="card-body">
+          <p class="small text-muted mb-3">
+            <i class="ti ti-info-circle me-1"></i>
+            以下设置为创建部署任务时的默认值，创建任务时仍可针对单次任务覆盖。
+          </p>
+
+          <form method="post">
+            <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="_action" value="save_deploy_config">
+
+            {# ── 交互弹窗配置 ── #}
+            <h6 class="border-bottom pb-1 mb-3"><i class="ti ti-message me-1"></i>交互弹窗</h6>
+
+            <div class="mb-2">
+              <label class="form-label small fw-bold">安装确认弹窗标题</label>
+              <input type="text" name="dialog_title" class="form-control form-control-sm"
+                     value="{{ deploy_config.dialog_title }}" placeholder="软件安装确认">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-bold">
+                安装确认弹窗内容
+                <span class="text-muted fw-normal">（占位符：<code>&#123;software&#125;</code> <code>&#123;version&#125;</code>）</span>
+              </label>
+              <textarea name="dialog_message" class="form-control form-control-sm" rows="3"
+                        placeholder="管理员向你推送了 {software} {version}，是否现在安装？">{{ deploy_config.dialog_message }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-bold">重启确认弹窗标题</label>
+              <input type="text" name="reboot_title" class="form-control form-control-sm"
+                     value="{{ deploy_config.reboot_title }}" placeholder="重启提醒">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">重启确认弹窗内容</label>
+              <textarea name="reboot_message" class="form-control form-control-sm" rows="2"
+                        placeholder="软件安装完成，需要重启计算机以完成配置。是否立即重启？">{{ deploy_config.reboot_message }}</textarea>
+            </div>
+
+            {# ── 推迟 & 超时 ── #}
+            <h6 class="border-bottom pb-1 mb-3"><i class="ti ti-clock me-1"></i>推迟与超时</h6>
+
+            <div class="row g-3 mb-3">
+              <div class="col-6">
+                <label class="form-label small fw-bold">推迟间隔（分钟）</label>
+                <input type="number" name="defer_minutes" class="form-control form-control-sm"
+                       value="{{ deploy_config.defer_minutes }}" min="5" max="1440">
+                <div class="form-text small">用户点"稍后提醒"后，多久再次弹窗</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">最大推迟次数</label>
+                <input type="number" name="defer_max_count" class="form-control form-control-sm"
+                       value="{{ deploy_config.defer_max_count }}" min="1" max="20">
+                <div class="form-text small">超过此次数后强制静默安装</div>
+              </div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-6">
+                <label class="form-label small fw-bold">默认任务超时（秒）</label>
+                <input type="number" name="default_timeout" class="form-control form-control-sm"
+                       value="{{ deploy_config.default_timeout }}" min="60" max="7200">
+                <div class="form-text small">安装执行超过此时间视为失败</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">防惊群抖动（秒）</label>
+                <input type="number" name="jitter_max" class="form-control form-control-sm"
+                       value="{{ deploy_config.jitter_max }}" min="0" max="300">
+                <div class="form-text small">终端随机延迟 0~N 秒再开始，避免同时拉取</div>
+              </div>
+            </div>
+
+            {# ── 高级选项 ── #}
+            <h6 class="border-bottom pb-1 mb-3"><i class="ti ti-adjustments me-1"></i>高级选项</h6>
+
+            <div class="mb-3">
+              <label class="form-label small fw-bold">安装包存放目录</label>
+              <input type="text" name="pkg_dir" class="form-control form-control-sm"
+                     value="{{ deploy_config.pkg_dir }}" placeholder="/home/glpidev/itasset-api/packages">
+              <div class="form-text small">上传的安装包文件存放路径，需 PHP 进程有写权限</div>
+            </div>
+
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" name="silent_override" value="1"
+                     id="cfg_silent_override" {% if deploy_config.silent_override %}checked{% endif %}>
+              <label class="form-check-label small" for="cfg_silent_override">
+                静默覆盖模式
+                <span class="text-muted">— 开启后所有部署任务默认跳过用户确认弹窗，直接静默安装</span>
+              </label>
+            </div>
+
+            <div class="alert alert-info small mb-3">
+              <i class="ti ti-bulb me-1"></i>
+              <strong>提示：</strong>静默覆盖模式适合紧急安全补丁场景。普通软件推送建议关闭，让用户有选择权。
+            </div>
+
+            {% if can_write %}
+            <button type="submit" class="btn btn-primary">
+              <i class="ti ti-device-floppy me-1"></i>保存配置
+            </button>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+
+    </div>
+
+    {# ── 右侧说明 ── #}
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-header"><h6 class="mb-0"><i class="ti ti-help me-1"></i>配置说明</h6></div>
+        <div class="card-body small">
+          <dl class="mb-0">
+            <dt>交互弹窗</dt>
+            <dd class="text-muted mb-2">用户桌面右下角弹出的确认对话框。可自定义标题和内容，占位符 <code>&#123;software&#125;</code> <code>&#123;version&#125;</code> 会被替换为实际软件名和版本号。</dd>
+
+            <dt>推迟机制</dt>
+            <dd class="text-muted mb-2">用户可选择"稍后提醒"，系统按<strong>推迟间隔</strong>再次弹窗。达到<strong>最大推迟次数</strong>后，不再询问直接静默安装。</dd>
+
+            <dt>防惊群抖动</dt>
+            <dd class="text-muted mb-2">大量终端同时拉取任务可能打爆服务器。随机延迟确保任务分散在 N 秒内逐步执行。</dd>
+
+            <dt>静默覆盖</dt>
+            <dd class="text-muted">跳过所有用户交互，直接后台安装。适合安全补丁/紧急推送。</dd>
+          </dl>
+        </div>
+      </div>
+
+      {# 预览弹窗效果 #}
+      <div class="card mt-3">
+        <div class="card-header"><h6 class="mb-0"><i class="ti ti-eye me-1"></i>弹窗预览</h6></div>
+        <div class="card-body text-center">
+          <div class="border rounded p-3 bg-light">
+            <div class="fw-bold mb-1">{{ deploy_config.dialog_title }}</div>
+            <div class="small text-muted mb-3">{{ deploy_config.dialog_message|replace({'{software}':'Chrome','{version}':'124.0'}) }}</div>
+            <div class="d-flex gap-2 justify-content-center">
+              <button class="btn btn-sm btn-success" disabled>立即安装</button>
+              <button class="btn btn-sm btn-outline-secondary" disabled>稍后提醒（{{ deploy_config.defer_minutes }}分钟）</button>
+            </div>
+          </div>
+
+          <div class="border rounded p-3 bg-light mt-3 border-warning">
+            <div class="fw-bold mb-1 text-warning">{{ deploy_config.reboot_title }}</div>
+            <div class="small text-muted mb-2">{{ deploy_config.reboot_message }}</div>
+            <div class="d-flex gap-2 justify-content-center">
+              <button class="btn btn-sm btn-warning" disabled>立即重启</button>
+              <button class="btn btn-sm btn-outline-secondary" disabled>稍后</button>
+            </div>
+          </div>
+        </div>
+
+
+      <div class="card mt-3">
+        <div class="card-header"><h6 class="mb-0"><i class="ti ti-shield-lock me-1"></i>LDAPS 证书提取工具</h6></div>
+        <div class="card-body small">
+          <p class="text-muted mb-2">以下 PowerShell 脚本用于从 LDAPS 服务器提取根 CA 证书并导出为 <code>.cer</code> 文件。</p>
+          <div class="mb-2">
+            <strong>使用方法：</strong>
+            <ol class="mb-1 ps-3">
+              <li>保存为 <code>get-ldaps-cert.ps1</code></li>
+              <li>PowerShell 执行：<br><code>.\get-ldaps-cert.ps1 -HostName dc.corp.com</code></li>
+              <li>生成 <code>rootca.cer</code></li>
+            </ol>
+          </div>
+          <div class="mb-2">
+            <strong>转换为 Base64 PEM（GLPI 需要）：</strong>
+            <div class="bg-dark text-light p-2 rounded mt-1">
+              certutil -encode rootca.cer rootca.pem && type rootca.pem
+            </div>
+            <span class="text-muted">复制输出的 BASE64 内容（含 -----BEGIN/END-----）粘贴到连接配置的 CA 证书框</span>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#psScriptBlock">
+            <i class="ti ti-code me-1"></i>查看完整 PowerShell 脚本
+          </button>
+          <div class="collapse mt-2" id="psScriptBlock">
+            <pre class="bg-dark text-light p-2 rounded"><code>param(
+ [Parameter(Mandatory=$true)]
+ [string]$HostName,
+ [Parameter(Mandatory=$false)]
+ [int]$Port = 636,
+ [Parameter(Mandatory=$false)]
+ [string]$Output = ".\rootca.cer"
+)
+
+Write-Host ""
+Write-Host "=== Connecting LDAPS Server ==="
+Write-Host "$HostName`:$Port"
+Write-Host ""
+
+try {
+ $tcp = New-Object Net.Sockets.TcpClient($HostName, $Port)
+ $certChain = $null
+ $ssl = New-Object Net.Security.SslStream(
+   $tcp.GetStream(),
+   $false,
+   [System.Net.Security.RemoteCertificateValidationCallback]{
+     param($sender, $certificate, $chain, $errors)
+     $script:certChain = $chain
+     return $true
+   }
+ )
+ $ssl.AuthenticateAsClient($HostName)
+ $serverCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $ssl.RemoteCertificate
+ Write-Host "=== Server Certificate ==="
+ Write-Host "Subject : $($serverCert.Subject)"
+ Write-Host "Issuer : $($serverCert.Issuer)"
+ Write-Host ""
+
+ $chain2 = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+ $chain2.ChainPolicy.RevocationMode = [System.Security.Cryptography.X509Certificates.X509RevocationMode]::NoCheck
+ $chain2.ChainPolicy.VerificationFlags = [System.Security.Cryptography.X509Certificates.X509VerificationFlags]::AllFlags
+ $chain2.Build($serverCert) | Out-Null
+
+ Write-Host "=== Full Certificate Chain ==="
+ $chain2.ChainElements | ForEach-Object -Begin { $i = 0 } -Process {
+   $cert = $_.Certificate
+   $tag = if ($cert.Subject -eq $cert.Issuer) { " <- ROOT CA (Self-Signed)" } else { "" }
+   Write-Host "[$i] Subject : $($cert.Subject)$tag"
+   Write-Host "    Issuer : $($cert.Issuer)"
+   Write-Host "    Thumbprint : $($cert.Thumbprint)"
+   Write-Host ""
+   $i++
+ }
+
+ $rootCert = $chain2.ChainElements | Where-Object {
+   $_.Certificate.Subject -eq $_.Certificate.Issuer
+ } | Select-Object -First 1 -ExpandProperty Certificate
+
+ if (-not $rootCert) {
+   Write-Host "No self-signed root found. Exporting last element as fallback..."
+   $rootCert = $chain2.ChainElements | Select-Object -Last 1 -ExpandProperty Certificate
+ }
+
+ Write-Host "=== Exporting Root CA ==="
+ Write-Host "Subject : $($rootCert.Subject)"
+ Export-Certificate -Cert $rootCert -FilePath $Output -Type CERT -Force | Out-Null
+ Write-Host "Exported: $Output"
+ $ssl.Close()
+ $tcp.Close()
+} catch {
+ Write-Host "ERROR: $($_.Exception.Message)"
+}</code></pre>
+            <button class="btn btn-xs btn-outline-info mt-1" onclick="navigator.clipboard.writeText(document.querySelector('#psScriptBlock code').textContent);this.textContent='已复制!';setTimeout(()=>this.textContent='复制脚本',2000)">复制脚本</button>
+          </div>
+        </div>
+      </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/plugins/admanager/js/config.js"></script>

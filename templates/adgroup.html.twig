@@ -1,0 +1,555 @@
+<div class="adm-page adm-split-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/aduser.php">
+        <i class="ti ti-users me-1"></i>AD用户管理
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/computer_query.php">
+        <i class="ti ti-search me-1"></i>计算机查询
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/bitlocker.php">
+        <i class="ti ti-key me-1"></i>BitLocker密钥
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/adgroup.php">
+        <i class="ti ti-shield-lock me-1"></i>AD安全组
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/usertemplate.php">
+        <i class="ti ti-template me-1"></i>用户模板
+      </a>
+    </li>
+  </ul>
+
+  {# ── 顶部工具栏 ── #}
+  <div class="adm-toolbar">
+    <div class="adm-toolbar-title">
+      <span><i class="ti ti-shield-lock me-1"></i>AD 安全组管理</span>
+    </div>
+    <div class="adm-toolbar-actions">
+      {% if can_write %}
+      <button class="btn btn-sm btn-primary" id="btnCreateGroup">
+        <i class="ti ti-plus me-1"></i>新建安全组
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="adm-split-body">
+
+    {# ══ 左栏：搜索 + 列表 ══ #}
+    <div class="adm-split-left">
+      <div class="card adm-fill-card">
+        <div class="card-header py-2">
+          <div class="d-flex gap-2 align-items-center">
+            <div class="input-group input-group-sm">
+              <input type="text" id="groupSearch" class="form-control" placeholder="搜索安全组名称/描述...">
+              <button class="btn btn-outline-secondary" id="btnSearch"><i class="ti ti-search"></i></button>
+            </div>
+            <select id="ouFilter" class="form-select form-select-sm">
+              <option value="">全部 OU</option>
+            </select>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" id="inclDist" role="switch">
+              <label class="form-check-label small text-nowrap" for="inclDist">含通讯组</label>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0 adm-scroll" id="groupListWrap">
+          <div class="text-center text-muted py-5" id="groupListPlaceholder">
+            <i class="ti ti-search"></i>
+            <p class="mt-2 small">输入关键词搜索，或留空加载全部</p>
+          </div>
+          <div id="groupList" class="list-group list-group-flush"></div>
+        </div>
+        <div class="card-footer py-1 text-muted small" id="groupCount"></div>
+      </div>
+    </div>
+
+    {# ══ 右栏：组详情 + 成员管理 ══ #}
+    <div class="adm-split-right">
+      <div class="card adm-fill-card" id="groupDetail">
+
+        {# 组信息头 #}
+        <div class="card-header py-3 d-flex align-items-start gap-2">
+          <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="fw-bold fs-6" id="detailName"></span>
+              <span class="badge" id="detailScopeBadge"></span>
+              <span class="badge bg-secondary-subtle text-secondary" id="detailTypeBadge"></span>
+            </div>
+            <div class="small text-muted mt-1" id="detailDn"></div>
+            <div class="small text-muted" id="detailDesc"></div>
+          </div>
+          {% if can_write %}
+          <div class="d-flex gap-1 flex-shrink-0">
+            <button class="btn btn-sm btn-outline-secondary" id="btnEditGroup" title="编辑组属性">
+              <i class="ti ti-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" id="btnDeleteGroup" title="删除组">
+              <i class="ti ti-trash"></i>
+            </button>
+          </div>
+          {% endif %}
+        </div>
+
+        {# 成员工具栏 #}
+        <div class="card-body border-bottom py-2 d-flex align-items-center gap-2 flex-wrap">
+          <span class="fw-semibold small"><i class="ti ti-users me-1"></i>成员列表</span>
+          <span class="badge bg-primary rounded-pill" id="memberCount">0</span>
+          <div class="input-group input-group-sm ms-auto">
+            <input type="text" id="memberFilter" class="form-control" placeholder="过滤成员...">
+          </div>
+          {% if can_write %}
+          <button class="btn btn-sm btn-success" id="btnAddMember">
+            <i class="ti ti-user-plus me-1"></i>添加成员
+          </button>
+          {% endif %}
+        </div>
+
+        {# 成员表格 #}
+        <div class="card-body p-0 adm-scroll">
+          <table class="table adm-table adm-fixed-header table-sm table-hover mb-0" id="memberTable">
+            <thead class="table-light">
+              <tr>
+                <th></th>
+                <th>显示名</th>
+                <th>账号</th>
+                <th>邮箱</th>
+                <th>类型</th>
+                <th>状态</th>
+                {% if can_write %}<th></th>{% endif %}
+              </tr>
+            </thead>
+            <tbody id="memberTbody">
+              <tr><td colspan="7" class="text-center text-muted py-4">选择左侧安全组</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# toast #}
+  <div id="toastWrap" class="position-fixed bottom-0 end-0 p-3"></div>
+</div>
+
+{# ══ 新建安全组 Modal ══ #}
+<div class="modal fade" id="createGroupModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-shield-plus me-2"></i>新建安全组</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">组名 <span class="text-danger">*</span></label>
+          <input type="text" id="newGroupName" class="form-control" placeholder="如：技术部-VPN访问">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">父 OU <span class="text-danger">*</span></label>
+          <select id="newGroupOU" class="form-select"><option value="">加载中...</option></select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">作用域</label>
+          <select id="newGroupScope" class="form-select">
+            <option value="global" selected>全局 (Global)</option>
+            <option value="universal">通用 (Universal)</option>
+            <option value="domain_local">本地域 (Domain Local)</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">描述</label>
+          <input type="text" id="newGroupDesc" class="form-control" placeholder="可选">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">邮件地址</label>
+          <input type="text" id="newGroupMail" class="form-control" placeholder="可选，如 vpn@corp.com">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="btnDoCreate"><i class="ti ti-check me-1"></i>创建</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ══ 编辑组属性 Modal ══ #}
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-edit me-2"></i>编辑安全组</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editGroupDn">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">描述</label>
+          <input type="text" id="editGroupDesc" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">邮件地址</label>
+          <input type="text" id="editGroupMail" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="btnDoEdit"><i class="ti ti-check me-1"></i>保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ══ 添加成员 Modal ══ #}
+<div class="modal fade" id="addMemberModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-user-plus me-2"></i>添加成员</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-3">
+          <input type="text" id="memberSearch" class="form-control" placeholder="搜索用户或安全组...">
+          <button class="btn btn-outline-secondary" id="btnMemberSearch"><i class="ti ti-search"></i></button>
+        </div>
+        <div id="memberSearchResults">
+          <div class="text-muted text-center py-4 small">输入关键词搜索</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var CSRF   = {{ csrf_token|json_encode|raw }};
+var CAN_W  = {{ can_write ? 'true' : 'false' }};
+var AJAX   = '/plugins/admanager/ajax/adgroup.php';
+var _currentGroup = null;
+var _allMembers   = [];
+
+{% verbatim %}
+
+/* ── 工具 ─────────────────────────────────────────── */
+function api(method, params, body){
+  var url = AJAX + (params ? '?' + new URLSearchParams(params) : '');
+  return fetch(url, {
+    method: method,
+    headers: {
+      'X-Requested-With':'XMLHttpRequest',
+      'X-Glpi-Csrf-Token': CSRF,
+      'Content-Type':'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function(r){ return r.json(); });
+}
+function GET(params){ return api('GET', params); }
+function POST(body){  return api('POST', null, body); }
+
+function toast(ok, msg){
+  var $w = document.getElementById('toastWrap');
+  var d  = document.createElement('div');
+  d.className = 'toast align-items-center text-bg-'+(ok?'success':'danger')+' border-0 show';
+  d.innerHTML = '<div class="d-flex"><div class="toast-body">'+msg+'</div>'
+    +'<button class="btn-close btn-close-white me-2 m-auto" onclick="this.closest(\'.toast\').remove()"></button></div>';
+  $w.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 4000);
+}
+
+function scopeLabel(s){
+  return {global:'全局',universal:'通用',domain_local:'本地域'}[s] || s;
+}
+function scopeColor(s){
+  return {global:'bg-primary',universal:'bg-info',domain_local:'bg-warning text-dark'}[s] || 'bg-secondary';
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ── 加载 OU 列表 ─────────────────────────────────── */
+function loadOUs(){
+  GET({action:'list_ous'}).then(function(d){
+    if(!d.ok) return;
+    var ouSel  = document.getElementById('ouFilter');
+    var newSel = document.getElementById('newGroupOU');
+    ouSel.innerHTML  = '<option value="">全部 OU</option>';
+    newSel.innerHTML = '<option value="">选择父 OU...</option>';
+    (d.data||[]).forEach(function(o){
+      var dn = o.distinguishedname || o.dn || '';
+      var label = o.ou || dn.split(',')[0] || dn;
+      ouSel.innerHTML  += '<option value="'+esc(dn)+'">'+esc(label)+'</option>';
+      newSel.innerHTML += '<option value="'+esc(dn)+'">'+esc(label)+' — <small>'+esc(dn)+'</small></option>';
+    });
+  });
+}
+
+/* ── 搜索安全组 ───────────────────────────────────── */
+function searchGroups(){
+  var kw   = document.getElementById('groupSearch').value.trim();
+  var ou   = document.getElementById('ouFilter').value;
+  var incD = document.getElementById('inclDist').checked;
+  var list = document.getElementById('groupList');
+  var ph   = document.getElementById('groupListPlaceholder');
+  list.innerHTML = '<div class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></div>';
+  ph.style.display = 'none';
+  GET({action:'search', keyword:kw, ou:ou, include_distribution: incD?1:0}).then(function(d){
+    list.innerHTML = '';
+    if(!d.ok){ list.innerHTML='<div class="text-danger p-3 small">'+esc(d.message)+'</div>'; return; }
+    var groups = d.data || [];
+    document.getElementById('groupCount').textContent = '共 '+groups.length+' 个组';
+    if(!groups.length){
+      list.innerHTML = '<div class="text-muted text-center py-5 small">未找到匹配的安全组</div>'; return;
+    }
+    groups.forEach(function(g){
+      var el = document.createElement('a');
+      el.href = '#';
+      el.className = 'list-group-item list-group-item-action py-2 px-3';
+      el.dataset.dn = g.dn;
+      el.innerHTML =
+        '<div class="d-flex align-items-center gap-2">'
+        +'<i class="ti ti-shield-lock text-primary flex-shrink-0"></i>'
+        +'<div class="flex-grow-1 overflow-hidden">'
+        +'<div class="fw-semibold text-truncate">'+esc(g.cn)+'</div>'
+        +(g.description ? '<div class="small text-muted text-truncate">'+esc(g.description)+'</div>' : '')
+        +'</div>'
+        +'<span class="badge '+scopeColor(g.scope)+' flex-shrink-0">'+scopeLabel(g.scope)+'</span>'
+        +'<span class="badge bg-light text-dark flex-shrink-0">'+g.member_count+'人</span>'
+        +'</div>';
+      el.addEventListener('click', function(e){ e.preventDefault(); selectGroup(g.dn); });
+      list.appendChild(el);
+    });
+  }).catch(function(e){ list.innerHTML='<div class="text-danger p-3 small">请求失败: '+esc(e.message)+'</div>'; });
+}
+
+/* ── 选中安全组，加载详情 ─────────────────────────── */
+function selectGroup(dn){
+  // 高亮
+  document.querySelectorAll('#groupList .list-group-item').forEach(function(el){
+    el.classList.toggle('active', el.dataset.dn === dn);
+  });
+  document.getElementById('groupDetail').style.removeProperty('display');
+  document.getElementById('memberTbody').innerHTML =
+    '<tr><td colspan="7" class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></td></tr>';
+
+  GET({action:'detail', dn:dn}).then(function(d){
+    if(!d.ok){ toast(false, d.message); return; }
+    _currentGroup = d.data;
+    renderGroupDetail(d.data);
+  });
+}
+
+function renderGroupDetail(g){
+  document.getElementById('detailName').textContent = g.cn;
+  document.getElementById('detailDn').textContent   = g.dn;
+  document.getElementById('detailDesc').textContent = g.description || '';
+  document.getElementById('detailScopeBadge').className = 'badge '+scopeColor(g.scope);
+  document.getElementById('detailScopeBadge').textContent = scopeLabel(g.scope);
+  document.getElementById('detailTypeBadge').textContent  = g.type === 'security' ? '安全组' : '通讯组';
+  _allMembers = g.members || [];
+  renderMembers(_allMembers);
+  document.getElementById('memberCount').textContent = _allMembers.length;
+}
+
+function renderMembers(members){
+  var cols = CAN_W ? 7 : 6;
+  if(!members.length){
+    document.getElementById('memberTbody').innerHTML =
+      '<tr><td colspan="'+cols+'" class="text-center text-muted py-4">该组暂无成员</td></tr>';
+    return;
+  }
+  var html = '';
+  members.forEach(function(m){
+    var icon = m.type==='group'
+      ? '<i class="ti ti-shield-lock text-primary"></i>'
+      : '<i class="ti ti-user text-secondary"></i>';
+    var status = m.type==='user'
+      ? (m.is_disabled
+          ? '<span class="badge bg-danger-subtle text-danger">禁用</span>'
+          : '<span class="badge bg-success-subtle text-success">正常</span>')
+      : '';
+    var rmBtn = CAN_W
+      ? '<td><button class="btn btn-xs btn-outline-danger py-0 px-1 btn-remove-member" '
+        +'data-dn="'+esc(m.dn)+'" title="移除"><i class="ti ti-x"></i></button></td>'
+      : '';
+    html += '<tr>'
+      +'<td class="text-center">'+icon+'</td>'
+      +'<td class="text-truncate" style="max-width:160px">'+esc(m.display)+'</td>'
+      +'<td class="text-truncate small text-muted" style="max-width:120px">'+esc(m.sam)+'</td>'
+      +'<td class="text-truncate small text-muted" style="max-width:160px">'+esc(m.mail)+'</td>'
+      +'<td><span class="badge bg-light text-dark">'+(m.type==='group'?'组':'用户')+'</span></td>'
+      +'<td>'+status+'</td>'
+      +rmBtn
+      +'</tr>';
+  });
+  document.getElementById('memberTbody').innerHTML = html;
+}
+
+/* ── 成员过滤 ─────────────────────────────────────── */
+document.getElementById('memberFilter').addEventListener('input', function(){
+  var kw = this.value.toLowerCase();
+  var filtered = _allMembers.filter(function(m){
+    return !kw || (m.display+m.sam+m.mail).toLowerCase().includes(kw);
+  });
+  renderMembers(filtered);
+});
+
+/* ── 移除成员（委托） ─────────────────────────────── */
+document.getElementById('memberTbody').addEventListener('click', function(e){
+  var btn = e.target.closest('.btn-remove-member');
+  if(!btn || !_currentGroup) return;
+  var mdn = btn.dataset.dn;
+  var mname = btn.closest('tr').querySelector('td:nth-child(2)').textContent;
+  if(!confirm('确认从组中移除成员：'+mname+'？')) return;
+  POST({action:'remove_member', group_dn:_currentGroup.dn, member_dn:mdn})
+    .then(function(d){
+      toast(d.ok, d.message);
+      if(d.ok) selectGroup(_currentGroup.dn);
+    });
+});
+
+/* ── 新建安全组 ───────────────────────────────────── */
+document.getElementById('btnCreateGroup') && document.getElementById('btnCreateGroup').addEventListener('click', function(){
+  new bootstrap.Modal(document.getElementById('createGroupModal')).show();
+});
+document.getElementById('btnDoCreate').addEventListener('click', function(){
+  var name  = document.getElementById('newGroupName').value.trim();
+  var ou    = document.getElementById('newGroupOU').value;
+  var scope = document.getElementById('newGroupScope').value;
+  var desc  = document.getElementById('newGroupDesc').value.trim();
+  var mail  = document.getElementById('newGroupMail').value.trim();
+  if(!name||!ou){ toast(false,'组名和父 OU 不能为空'); return; }
+  POST({action:'create', name:name, ou:ou, scope:scope, description:desc, mail:mail})
+    .then(function(d){
+      toast(d.ok, d.message);
+      if(d.ok){
+        bootstrap.Modal.getInstance(document.getElementById('createGroupModal')).hide();
+        ['newGroupName','newGroupDesc','newGroupMail'].forEach(function(id){
+          document.getElementById(id).value='';
+        });
+        searchGroups();
+      }
+    });
+});
+
+/* ── 编辑组属性 ───────────────────────────────────── */
+document.getElementById('btnEditGroup').addEventListener('click', function(){
+  if(!_currentGroup) return;
+  document.getElementById('editGroupDn').value   = _currentGroup.dn;
+  document.getElementById('editGroupDesc').value = _currentGroup.description || '';
+  document.getElementById('editGroupMail').value = _currentGroup.mail || '';
+  new bootstrap.Modal(document.getElementById('editGroupModal')).show();
+});
+document.getElementById('btnDoEdit').addEventListener('click', function(){
+  var dn   = document.getElementById('editGroupDn').value;
+  var desc = document.getElementById('editGroupDesc').value.trim();
+  var mail = document.getElementById('editGroupMail').value.trim();
+  POST({action:'modify', dn:dn, description:desc, mail:mail})
+    .then(function(d){
+      toast(d.ok, d.message);
+      if(d.ok){
+        bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
+        selectGroup(dn);
+      }
+    });
+});
+
+/* ── 删除组 ───────────────────────────────────────── */
+document.getElementById('btnDeleteGroup').addEventListener('click', function(){
+  if(!_currentGroup) return;
+  var cnt = _currentGroup.member_count || 0;
+  var msg = cnt > 0
+    ? '组内有 '+cnt+' 个成员，强制删除将同时移除所有成员关系。确认删除「'+_currentGroup.cn+'」？'
+    : '确认删除安全组「'+_currentGroup.cn+'」？此操作不可恢复。';
+  if(!confirm(msg)) return;
+  POST({action:'delete', dn:_currentGroup.dn, force: cnt>0})
+    .then(function(d){
+      toast(d.ok, d.message);
+      if(d.ok){
+        _currentGroup = null;
+        document.getElementById('groupDetail').innerHTML = '<div class=\'card-body text-center text-muted py-5\'><i class=\'ti ti-shield-lock\' style=\'font-size:2rem\'></i><p class=\'mt-3\'>从左侧选择一个安全组查看详情</p></div>';
+        searchGroups();
+      }
+    });
+});
+
+/* ── 添加成员 ─────────────────────────────────────── */
+document.getElementById('btnAddMember').addEventListener('click', function(){
+  document.getElementById('memberSearch').value = '';
+  document.getElementById('memberSearchResults').innerHTML = '<div class="text-muted text-center py-4 small">输入关键词搜索</div>';
+  new bootstrap.Modal(document.getElementById('addMemberModal')).show();
+});
+function doMemberSearch(){
+  var kw = document.getElementById('memberSearch').value.trim();
+  if(!kw) return;
+  var res = document.getElementById('memberSearchResults');
+  res.innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>';
+  GET({action:'search_members', keyword:kw}).then(function(d){
+    if(!d.ok){ res.innerHTML='<div class="text-danger p-3 small">'+esc(d.message)+'</div>'; return; }
+    var items = d.data || [];
+    if(!items.length){ res.innerHTML='<div class="text-muted text-center py-4 small">未找到匹配结果</div>'; return; }
+    var html = '<div class="list-group">';
+    items.forEach(function(item){
+      var isGroup = item._type==='group';
+      var icon = isGroup ? 'ti-shield-lock text-primary' : 'ti-user text-secondary';
+      var disabled = _allMembers.some(function(m){ return m.dn===item.dn; }) ? ' disabled' : '';
+      var label = disabled ? ' <span class="badge bg-light text-dark ms-1">已在组中</span>' : '';
+      html += '<button class="list-group-item list-group-item-action py-2'+disabled+'" data-dn="'+esc(item.dn)+'">'
+        +'<div class="d-flex align-items-center gap-2">'
+        +'<i class="ti '+icon+'"></i>'
+        +'<div><div class="fw-semibold">'+esc(item.display||item.cn)+'</div>'
+        +'<div class="small text-muted">'+esc(item.sam||'')+(item.mail?' · '+esc(item.mail):'')+'</div></div>'
+        +label+'</div></button>';
+    });
+    html += '</div>';
+    res.innerHTML = html;
+    res.querySelectorAll('button[data-dn]:not(:disabled)').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if(!_currentGroup) return;
+        btn.disabled = true;
+        btn.innerHTML += ' <span class="spinner-border spinner-border-sm"></span>';
+        POST({action:'add_member', group_dn:_currentGroup.dn, member_dn:btn.dataset.dn})
+          .then(function(d){
+            toast(d.ok, d.message);
+            if(d.ok){
+              btn.innerHTML = btn.innerHTML.replace(/<span.*<\/span>/,'')
+                +' <span class="badge bg-success">已添加</span>';
+              selectGroup(_currentGroup.dn);
+            } else {
+              btn.disabled = false;
+            }
+          });
+      });
+    });
+  });
+}
+document.getElementById('btnMemberSearch').addEventListener('click', doMemberSearch);
+document.getElementById('memberSearch').addEventListener('keydown', function(e){ if(e.key==='Enter') doMemberSearch(); });
+
+/* ── 搜索框事件 ───────────────────────────────────── */
+document.getElementById('btnSearch').addEventListener('click', searchGroups);
+document.getElementById('groupSearch').addEventListener('keydown', function(e){ if(e.key==='Enter') searchGroups(); });
+document.getElementById('ouFilter').addEventListener('change', searchGroups);
+document.getElementById('inclDist').addEventListener('change', searchGroups);
+
+/* ── 初始化 ───────────────────────────────────────── */
+loadOUs();
+searchGroups();
+
+{% endverbatim %}
+})();
+</script>
+<script src="/plugins/admanager/js/aduser.js"></script>

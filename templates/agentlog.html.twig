@@ -1,0 +1,109 @@
+<div class="adm-page agent-log-page">
+  {# 对话日志 / 操作审计 共用页签导航 #}
+  <ul class="nav nav-tabs mb-3" id="log-subtabs">
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/agentlog.php">
+        <i class="ti ti-scroll-text me-1"></i>对话日志
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/auditlog.php">
+        <i class="ti ti-clipboard-check me-1"></i>操作审计
+      </a>
+    </li>
+  </ul>
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      <h5 class="mb-0"><i class="ti ti-scroll-text me-1"></i>AI Agent 对话审计日志</h5>
+      <span class="badge bg-light text-dark border">第 {{ page }} 页 · 本页 {{ logs|length }} 条</span>
+    </div>
+
+    <div class="card-body">
+      {# ── 筛选栏 ── #}
+      <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3">
+          <input type="text" name="operator" class="form-control form-control-sm" placeholder="操作者" value="{{ filters.operator }}">
+        </div>
+        <div class="col-md-2">
+          <select name="role" class="form-select form-select-sm">
+            <option value="">全部角色</option>
+            <option value="user" {{ filters.role == 'user' ? 'selected' }}>用户</option>
+            <option value="assistant" {{ filters.role == 'assistant' ? 'selected' }}>AI 回复</option>
+            <option value="tool_call" {{ filters.role == 'tool_call' ? 'selected' }}>工具调用</option>
+            <option value="tool_result" {{ filters.role == 'tool_result' ? 'selected' }}>工具结果</option>
+            <option value="error" {{ filters.role == 'error' ? 'selected' }}>错误</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <input type="text" name="session_id" class="form-control form-control-sm" placeholder="会话 ID" value="{{ filters.session_id }}">
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-search me-1"></i>查询</button>
+          <a href="/plugins/admanager/front/agentlog.php" class="btn btn-sm btn-outline-secondary">重置</a>
+        </div>
+      </form>
+
+      {% if api_err %}
+        <div class="alert alert-danger small mb-3">{{ api_err }}</div>
+      {% endif %}
+
+      {% if logs is empty and not api_err %}
+        <div class="text-center text-muted py-5">
+          <i class="ti ti-inbox" style="font-size:2.2rem"></i>
+          <p class="mt-2 mb-0">暂无对话审计日志</p>
+        </div>
+      {% else %}
+        <div class="ad-table-wrap">
+          <table class="table adm-table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">时间</th>
+                <th>操作者</th>
+                <th>角色</th>
+                <th>会话 ID</th>
+                <th>IP</th>
+                <th class="ps-3">内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in logs %}
+              <tr>
+                <td class="ps-3 text-nowrap small text-muted">{{ log.ts_fmt }}</td>
+                <td class="small">{{ log.operator }}</td>
+                <td><span class="badge {{ log.role_cls }}">{{ log.role_label }}</span></td>
+                <td class="small text-muted text-truncate" style="max-width:170px" title="{{ log.session_id }}">{{ log.session_id }}</td>
+                <td class="small text-muted">{{ log.ip_address }}</td>
+                <td class="small ps-3" style="max-width:560px">
+                  {% if log.role == 'tool_call' and log.tool_name %}
+                    <span class="badge bg-secondary">🔧 {{ log.tool_name }}</span>
+                    {% if log.tool_args %}<pre class="mt-1 mb-0 small bg-light p-2 rounded border" style="white-space:pre-wrap;max-height:140px;overflow:auto">{{ log.tool_args }}</pre>{% endif %}
+                  {% elseif log.role == 'tool_result' and log.tool_result %}
+                    <pre class="mb-0 small bg-light p-2 rounded border" style="white-space:pre-wrap;max-height:140px;overflow:auto">{{ log.tool_result }}</pre>
+                  {% else %}
+                    <div style="white-space:pre-wrap;max-height:180px;overflow:auto">{{ log.content }}</div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <nav class="mt-3">
+          <ul class="pagination pagination-sm justify-content-center mb-0">
+            <li class="page-item {{ page <= 1 ? 'disabled' }}">
+              <a class="page-link" href="{{ prev_url }}">上一页</a>
+            </li>
+            <li class="page-item disabled">
+              <span class="page-link">第 {{ page }} 页</span>
+            </li>
+            <li class="page-item {{ has_more ? '' : 'disabled' }}">
+              <a class="page-link" href="{{ next_url }}">下一页</a>
+            </li>
+          </ul>
+        </nav>
+      {% endif %}
+    </div>
+  </div>
+</div>

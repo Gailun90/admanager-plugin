@@ -1,0 +1,192 @@
+<div class="adm-page agent-chat-page">
+  <input type="hidden" id="agent-config" value="{{ config|e('html_attr') }}">
+  <input type="hidden" id="agent-csrf" value="{{ csrf_token }}">
+
+  {# 漏洞修复子页签 #}
+  <ul class="nav nav-tabs mb-3" id="vuln-subtabs">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_import.php">
+        <i class="ti ti-file-import me-1"></i>导入记录
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_tasks.php">
+        <i class="ti ti-list-check me-1"></i>待处理任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_rules.php">
+        <i class="ti ti-book me-1"></i>QID规则库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_correct.php">
+        <i class="ti ti-message-chatbot me-1"></i>对话纠正
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/agent.php">
+        <i class="ti ti-robot me-1"></i>AI Agent
+      </a>
+    </li>
+  </ul>
+
+  {# == Agent 对话主体 == #}
+  <div class="agent-layout">
+    {# ── 左侧：聊天区域 ── #}
+    <div class="agent-chat-panel">
+      {# 消息列表 #}
+      <div class="agent-messages" id="agent-messages">
+        <div class="agent-msg agent-msg-assistant">
+          <div class="agent-avatar"><i class="ti ti-robot"></i></div>
+          <div class="agent-bubble">
+            <p>你好，我是终端安全运维 Agent。我可以帮你：</p>
+            <ul class="agent-capabilities">
+              <li><i class="ti ti-check"></i>查看待处理漏洞任务</li>
+              <li><i class="ti ti-check"></i>对终端执行远程命令</li>
+              <li><i class="ti ti-check"></i>下发修复任务</li>
+              <li><i class="ti ti-check"></i>查看终端在线状态</li>
+              <li><i class="ti ti-check"></i>修改 QID 规则</li>
+              <li><i class="ti ti-check"></i>管理安装包</li>
+              <li><i class="ti ti-check"></i>安排定时任务</li>
+            </ul>
+            <p class="agent-hint">💡 使用 <code>@</code> 引用终端、QID 或分组，例如："查看 @CNCDW-001 的在线状态"</p>
+          </div>
+        </div>
+      </div>
+
+      {# @ 引用补全浮层 #}
+      <div class="agent-mentions-dropdown" id="agent-mentions" style="display:none;">
+        <div class="mentions-section" data-section="clients">
+          <div class="mentions-section-title">终端</div>
+          <div class="mentions-items"></div>
+        </div>
+        <div class="mentions-section" data-section="qids">
+          <div class="mentions-section-title">QID 规则</div>
+          <div class="mentions-items"></div>
+        </div>
+        <div class="mentions-section" data-section="groups">
+          <div class="mentions-section-title">分组</div>
+          <div class="mentions-items"></div>
+        </div>
+      </div>
+
+      {# 输入区域 #}
+      <div class="agent-input-area">
+        <div class="agent-input-wrapper">
+          <div class="agent-references" id="agent-references"></div>
+          <div class="agent-input-row">
+            <textarea
+              id="agent-input"
+              class="agent-input"
+              placeholder="输入消息，@ 引用终端/QID/分组…"
+              rows="2"
+              autocomplete="off"
+            ></textarea>
+            <div class="agent-input-actions">
+              <button class="btn btn-sm btn-outline-secondary" id="agent-clear-btn" title="清空对话">
+                <i class="ti ti-trash"></i>
+              </button>
+              <button class="btn btn-sm btn-primary" id="agent-send-btn" title="发送 (Ctrl+Enter)">
+                <i class="ti ti-send"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="agent-input-footer">
+          <span class="agent-status" id="agent-status">
+            <i class="ti ti-point-filled text-success"></i> 就绪
+          </span>
+          <span class="agent-shortcut">
+            <kbd>Ctrl</kbd>+<kbd>Enter</kbd> 发送 · <kbd>Esc</kbd> 取消引用
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {# ── 右侧：Agent 工作区 ── #}
+    <div class="agent-workspace-panel">
+      <div class="workspace-header">
+        <h5 class="mb-0"><i class="ti ti-briefcase me-1"></i>工作区</h5>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary" id="agent-prompt-btn" title="Agent Prompt 设置">
+            <i class="ti ti-adjustments"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-primary" id="ws-refresh-btn" title="刷新">
+            <i class="ti ti-refresh"></i>
+          </button>
+        </div>
+      </div>
+
+      {# 文件上传 #}
+      {% if can_write %}
+      <div class="workspace-upload-zone" id="ws-upload-zone">
+        <i class="ti ti-cloud-upload"></i>
+        <p>拖拽文件到此处或<span class="upload-link">点击上传</span></p>
+        <input type="file" id="ws-file-input" style="display:none;" multiple>
+        <div class="upload-progress" id="ws-upload-progress" style="display:none;">
+          <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+          </div>
+          <p class="upload-status-text">上传中…</p>
+        </div>
+      </div>
+      {% endif %}
+
+      {# 文件列表 #}
+      <div class="workspace-files" id="ws-files">
+        <div class="workspace-loading text-center text-muted py-3">
+          <i class="ti ti-loader ti-spin"></i> 加载中…
+        </div>
+      </div>
+
+      {# AI 分析区 #}
+      <div class="workspace-analyze" id="ws-analyze-area" style="display:none;">
+        <hr>
+        <h6 class="mb-2"><i class="ti ti-brain me-1"></i>AI 分析文件</h6>
+        <div class="mb-2">
+          <textarea id="ws-analyze-question" class="form-control form-control-sm" rows="2"
+            placeholder="输入问题，例如：这个脚本的作用是什么？">分析这个文件的用途和关键信息</textarea>
+        </div>
+        <button class="btn btn-sm btn-outline-primary w-100" id="ws-analyze-btn">
+          <i class="ti ti-bolt me-1"></i>AI 分析
+        </button>
+        <div class="ws-analyze-result mt-2" id="ws-analyze-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="/plugins/admanager/css/agent_chat.css">
+<script src="/plugins/admanager/js/agent_chat.js"></script>
+
+{# == Prompt 设置弹窗 == #}
+<div class="modal fade" id="promptModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title"><i class="ti ti-adjustments me-1"></i>Agent Prompt 设置</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-bold text-muted">基础 Prompt（系统内置，只读）</label>
+          <textarea class="form-control form-control-sm" id="prompt-base" rows="6" readonly style="font-size:12px;background:#f8f9fa;"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">企业自定义 Prompt（追加到基础 Prompt 之后）</label>
+          <textarea class="form-control" id="prompt-custom" rows="10" placeholder="在此输入企业背景、人格设定、工作风格等自定义指令..." style="font-size:13px;"></textarea>
+          <div class="form-text">此内容会追加到基础 Prompt 之后，影响 Agent 的行为方式。留空则仅使用基础 Prompt。</div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-bold text-muted">合并后完整 Prompt（预览）</label>
+          <textarea class="form-control form-control-sm" id="prompt-preview" rows="4" readonly style="font-size:11px;background:#f8f9fa;color:#999;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-sm btn-primary" id="prompt-save-btn"><i class="ti ti-device-floppy me-1"></i>保存</button>
+      </div>
+    </div>
+  </div>
+</div>

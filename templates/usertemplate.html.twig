@@ -1,0 +1,425 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/aduser.php">
+        <i class="ti ti-users me-1"></i>AD用户管理
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/computer_query.php">
+        <i class="ti ti-search me-1"></i>计算机查询
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/bitlocker.php">
+        <i class="ti ti-key me-1"></i>BitLocker密钥
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/adgroup.php">
+        <i class="ti ti-shield-lock me-1"></i>AD安全组
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/usertemplate.php">
+        <i class="ti ti-template me-1"></i>用户模板
+      </a>
+    </li>
+  </ul>
+
+  <div class="d-flex justify-content-between align-items-center mt-2 mb-3">
+    <h5 class="mb-0"><i class="ti ti-template me-2"></i>用户创建模板管理</h5>
+    <div>
+      <button class="btn btn-sm btn-primary" id="btnSave">
+        <i class="ti ti-device-floppy me-1"></i>保存模板
+      </button>
+    </div>
+  </div>
+
+  {# === 模板选择 + 命名 === #}
+  <div class="card mb-2">
+    <div class="card-body py-2">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small fw-bold mb-0">模板名称</label>
+          <input type="text" id="tplName" class="form-control form-control-sm" placeholder="例如：技术部-新员工">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold mb-0">加载已有模板</label>
+          <select id="tplSelect" class="form-select">
+            {% for t in templates %}
+              <option value="{{ t.id }}">{{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-sm btn-outline-info" id="btnLoad"><i class="ti ti-refresh me-1"></i>加载</button>
+          <button class="btn btn-sm btn-outline-danger" id="btnDelete" disabled><i class="ti ti-trash me-1"></i>删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# === 字段配置区 === #}
+  <div class="row g-2">
+    <div class="col-md-6">
+      <div class="card border-secondary h-100">
+        <div class="card-header bg-light py-2">
+          <h6 class="mb-0"><i class="ti ti-square me-1"></i>可选字段</h6>
+          <small class="text-muted">点击 → 添加到右侧</small>
+        </div>
+        <div class="card-body py-2" id="availableFields"></div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-success h-100">
+        <div class="card-header bg-success bg-opacity-10 py-2 d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="ti ti-checkbox me-1"></i>已选字段</h6>
+          <small class="text-muted">点击 ✕ 移除</small>
+        </div>
+        <div class="card-body py-2" id="selectedFields"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast_wrap" class="position-fixed bottom-0 end-0 p-3"></div>
+</div>
+
+{# ── OU 搜索卡片 ── #}
+<div class="card mt-4">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span class="fw-bold"><i class="ti ti-search me-1"></i>AD OU 搜索</span>
+    <small class="text-muted">搜索后点击 DN 即可复制</small>
+  </div>
+  <div class="card-body">
+    <div class="d-flex gap-2 mb-3">
+      <input type="text" id="ouSearchInput" class="form-control form-control-sm"
+             placeholder="输入关键词搜索 OU，如：技术部、Finance...">
+      <button class="btn btn-sm btn-primary" id="btnOuSearch">
+        <i class="ti ti-search me-1"></i>搜索
+      </button>
+    </div>
+    <div id="ouSearchResults" class="d-none">
+      <div class="text-muted small mb-2" id="ouResultCount"></div>
+      <div id="ouResultList" class="d-flex flex-column gap-1"></div>
+    </div>
+    <div id="ouSearchEmpty" class="d-none text-muted small">未找到匹配的 OU</div>
+    <div id="ouSearchLoading" class="d-none text-muted small">
+      <i class="ti ti-loader-2 ti-spin me-1"></i>搜索中...
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 模块级共享变量 ── */
+  var CSRF_TOKEN = {{ csrf_token|json_encode|raw }};
+  var FORM_URL   = '/plugins/admanager/front/usertemplate.form.php';
+  var ALL_FIELDS = {
+{% for key, meta in all_fields %}
+    {{ key|json_encode|raw }}: { ad: {{ meta[0]|json_encode|raw }}, display: {{ meta[1]|json_encode|raw }}, type: {{ meta[2]|json_encode|raw }}, always_fixed: {{ meta[3] ? 'true' : 'false' }} },
+{% endfor %}
+  };
+
+{% verbatim %}
+  var ALL_KEYS = Object.keys(ALL_FIELDS);
+  var _tpl     = null;
+
+  /* ════════════════════════════════════════
+     工具函数
+  ════════════════════════════════════════ */
+  function getIcon(type) {
+    return type === 'email' ? '📧' : type === 'url' ? '🔗' : type === 'textarea' ? '📝' : type === 'select' ? '📂' : '📋';
+  }
+  function esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function collectId()   { return parseInt($('#tplSelect').val()) || 0; }
+  function collectName() { return $('#tplName').val().trim(); }
+  function collectFields() {
+    var fields = [];
+    $('#selectedFields > [data-key]').each(function () {
+      var key = $(this).data('key');
+      if (!ALL_FIELDS[key]) return;
+      fields.push({ key: key, default: ($(this).find('.fld-default').val() || '').trim() });
+    });
+    return fields;
+  }
+  function getSelectedKeys() {
+    var keys = [];
+    $('#selectedFields > [data-key]').each(function () { keys.push($(this).data('key')); });
+    return keys;
+  }
+
+  /* ════════════════════════════════════════
+     渲染函数
+  ════════════════════════════════════════ */
+  function renderAvailable() {
+    var $el = $('#availableFields');
+    var selected = getSelectedKeys();
+    var avail = ALL_KEYS.filter(function (k) { return selected.indexOf(k) === -1; });
+    if (!avail.length) {
+      $el.html('<div class="text-center text-muted py-5"><p class="mt-2">所有字段已添加完毕</p></div>');
+      return;
+    }
+    var html = '';
+    avail.forEach(function (key) {
+      var meta = ALL_FIELDS[key];
+      html += '<div class="d-flex align-items-center p-1 mb-1 border rounded" data-key="' + esc(key) + '" style="cursor:pointer">' +
+        '<span class="badge bg-light text-dark me-2" style="min-width:60px">' + getIcon(meta.type) + ' ' + esc(meta.display) + '</span>' +
+        '<small class="text-muted">' + esc(key) + '</small>' +
+        '<i class="ti ti-arrow-right ms-auto text-primary"></i></div>';
+    });
+    $el.html(html);
+  }
+
+  function renderSelected() {
+    var $el = $('#selectedFields');
+    var selected = getSelectedKeys();
+    if (!selected.length) {
+      $el.html('<div class="text-center text-muted py-5"><i class="ti ti-arrow-left" style="font-size:2rem"></i><p class="mt-2">从左侧点击添加字段</p></div>');
+      return;
+    }
+    var html = '';
+    selected.forEach(function (key) {
+      var meta     = ALL_FIELDS[key];
+      var existing = $el.find('[data-key="' + esc(key) + '"] .fld-default').val() || '';
+      html += '<div class="d-flex align-items-center p-1 mb-1 border rounded" data-key="' + esc(key) + '" style="background:#f0fff0">' +
+        '<span class="badge bg-success me-2 flex-shrink-0" style="min-width:60px">' + getIcon(meta.type) + ' ' + esc(meta.display) + '</span>' +
+        '<small class="text-muted me-2 flex-shrink-0">' + esc(meta.ad) + '</small>' +
+        '<input type="text" class="form-control form-control-sm flex-grow-1 fld-default" data-key="' + esc(key) + '" placeholder="默认值(可选)" value="' + esc(existing) + '">' +
+        '<i class="ti ti-x ms-2 text-danger flex-shrink-0" style="cursor:pointer" title="移除"></i></div>';
+    });
+    $el.html(html);
+  }
+
+  function renderAll() { renderAvailable(); renderSelected(); }
+
+  /* ════════════════════════════════════════
+     字段操作
+  ════════════════════════════════════════ */
+  function addField(key) {
+    if (getSelectedKeys().indexOf(key) !== -1) return;
+    $('#availableFields [data-key="' + esc(key) + '"]').remove();
+    var meta = ALL_FIELDS[key];
+    var $div = $('<div/>')
+      .addClass('d-flex align-items-center p-1 mb-1 border rounded')
+      .attr('data-key', key).css('background', '#f0fff0')
+      .html(
+        '<span class="badge bg-success me-2 flex-shrink-0" style="min-width:60px">' + getIcon(meta.type) + ' ' + esc(meta.display) + '</span>' +
+        '<small class="text-muted me-2 flex-shrink-0">' + esc(meta.ad) + '</small>' +
+        '<input type="text" class="form-control form-control-sm flex-grow-1 fld-default" data-key="' + esc(key) + '" placeholder="默认值(可选)" value="">' +
+        '<i class="ti ti-x ms-2 text-danger flex-shrink-0" style="cursor:pointer" title="移除"></i>'
+      );
+    $('#selectedFields').append($div);
+    if (!$('#availableFields [data-key]').length) renderAvailable();
+  }
+
+  function removeField(key) {
+    $('#selectedFields [data-key="' + esc(key) + '"]').remove();
+    renderAll();
+  }
+
+  $(document).off('click.tplfields').on('click.tplfields', function (e) {
+    var $t = $(e.target);
+    var $a = $t.closest('#availableFields [data-key]');
+    if ($a.length) { addField($a.data('key')); return; }
+    if ($t.is('.ti-x') || $t.closest('.ti-x').length) {
+      var $r = $t.closest('#selectedFields [data-key]');
+      if ($r.length) removeField($r.data('key'));
+    }
+  });
+
+  /* ════════════════════════════════════════
+     AJAX 操作
+  ════════════════════════════════════════ */
+  function loadTemplate() {
+    var id = collectId();
+    if (!id) { resetForm(); return; }
+    $.ajax({ url: FORM_URL, type: 'POST', dataType: 'json',
+      data: { action: 'get', template_id: id, _glpi_csrf_token: CSRF_TOKEN }
+    }).done(function (d) {
+      if (!d || d.ok === undefined) { _showToast(false, '返回数据格式异常'); return; }
+      if (!d.ok) { _showToast(false, d.message || '加载失败'); return; }
+      if (d.csrf_token) CSRF_TOKEN = d.csrf_token;
+      _tpl = d.data;
+      applyTemplateData(_tpl);
+      _showToast(true, '模板已加载：' + d.data.name);
+    }).fail(function (xhr, status, err) {
+      var msg = err || status;
+      try { msg = JSON.parse(xhr.responseText).message || msg; } catch (e) {}
+      _showToast(false, '加载失败：' + msg);
+    });
+  }
+
+  function applyTemplateData(data) {
+    var id = parseInt(data.id) || 0;
+    $('#tplName').val(data.name || '');
+    $('#btnDelete').prop('disabled', id <= 0);
+    $('#selectedFields').empty();
+    (data.fields || []).forEach(function (f) {
+      if (!ALL_FIELDS[f.key]) return;
+      var key  = f.key;
+      var meta = ALL_FIELDS[key];
+      var $div = $('<div/>')
+        .addClass('d-flex align-items-center p-1 mb-1 border rounded')
+        .attr('data-key', key).css('background', '#f0fff0')
+        .html(
+          '<span class="badge bg-success me-2 flex-shrink-0" style="min-width:60px">' + getIcon(meta.type) + ' ' + esc(meta.display) + '</span>' +
+          '<small class="text-muted me-2 flex-shrink-0">' + esc(meta.ad) + '</small>' +
+          '<input type="text" class="form-control form-control-sm flex-grow-1 fld-default" data-key="' + esc(key) + '" placeholder="默认值(可选)" value="' + esc(String(f.default || '')) + '">' +
+          '<i class="ti ti-x ms-2 text-danger flex-shrink-0" style="cursor:pointer" title="移除"></i>'
+        );
+      $('#selectedFields').append($div);
+    });
+    renderAll();
+  }
+
+  function resetForm() {
+    $('#tplName').val('');
+    $('#selectedFields').empty();
+    $('#btnDelete').prop('disabled', true);
+    renderAll();
+  }
+
+  function saveTemplate() {
+    var name = collectName();
+    if (!name) { _showToast(false, '请输入模板名称'); return; }
+    var id = collectId();
+    $.ajax({ url: FORM_URL, type: 'POST', dataType: 'json',
+      data: { action: 'save', template_id: id, name: name, fields: JSON.stringify(collectFields()), _glpi_csrf_token: CSRF_TOKEN }
+    }).done(function (d) {
+      if (!d || d.ok === undefined) { _showToast(false, '返回数据格式异常'); return; }
+      if (!d.ok) { _showToast(false, d.message || '保存失败'); return; }
+      if (d.csrf_token) CSRF_TOKEN = d.csrf_token;
+      _showToast(true, d.message);
+      setTimeout(function () { location.reload(); }, 800);
+    }).fail(function (xhr, status, err) {
+      var msg = err || status;
+      try { msg = JSON.parse(xhr.responseText).message || msg; } catch (e) {}
+      _showToast(false, '保存失败：' + msg);
+    });
+  }
+
+  function deleteTemplate() {
+    var id = collectId();
+    if (!id) { _showToast(false, '请先选择要删除的模板'); return; }
+    if (!confirm('确认删除此模板？此操作不可恢复。')) return;
+    $.ajax({ url: FORM_URL, type: 'POST', dataType: 'json',
+      data: { action: 'delete', template_id: id, _glpi_csrf_token: CSRF_TOKEN }
+    }).done(function (d) {
+      if (!d || d.ok === undefined) { _showToast(false, '返回数据格式异常'); return; }
+      if (!d.ok) { _showToast(false, d.message || '删除失败'); return; }
+      if (d.csrf_token) CSRF_TOKEN = d.csrf_token;
+      _showToast(true, d.message);
+      setTimeout(function () { location.reload(); }, 800);
+    }).fail(function (xhr, status, err) {
+      var msg = err || status;
+      try { msg = JSON.parse(xhr.responseText).message || msg; } catch (e) {}
+      _showToast(false, '删除失败：' + msg);
+    });
+  }
+
+  /* ════════════════════════════════════════
+     OU 搜索（同一 IIFE，共享 CSRF_TOKEN）
+  ════════════════════════════════════════ */
+  function searchOu() {
+    var kw       = document.getElementById('ouSearchInput').value.trim();
+    var resDiv   = document.getElementById('ouSearchResults');
+    var emptyDiv = document.getElementById('ouSearchEmpty');
+    var loadDiv  = document.getElementById('ouSearchLoading');
+    var listDiv  = document.getElementById('ouResultList');
+    var countDiv = document.getElementById('ouResultCount');
+
+    resDiv.classList.add('d-none');
+    emptyDiv.classList.add('d-none');
+    loadDiv.classList.remove('d-none');
+    listDiv.innerHTML = '';
+
+    $.ajax({ url: FORM_URL, type: 'POST', dataType: 'json',
+      data: { action: 'ous', _glpi_csrf_token: CSRF_TOKEN }
+    }).done(function (d) {
+      loadDiv.classList.add('d-none');
+      if (d && d.csrf_token) CSRF_TOKEN = d.csrf_token;
+      if (!d || !d.ok || !d.data || !d.data.length) {
+        emptyDiv.textContent = '未找到 OU，请检查 AD 连接';
+        emptyDiv.classList.remove('d-none');
+        return;
+      }
+      var filtered = kw
+        ? d.data.filter(function (o) { return (o.distinguishedname || '').toLowerCase().indexOf(kw.toLowerCase()) !== -1; })
+        : d.data;
+      if (!filtered.length) {
+        emptyDiv.textContent = '未找到匹配的 OU';
+        emptyDiv.classList.remove('d-none');
+        return;
+      }
+      countDiv.textContent = '找到 ' + filtered.length + ' 个 OU（点击 DN 复制）';
+      filtered.forEach(function (o) {
+        var dn     = o.distinguishedname || '';
+        var ouName = (dn.match(/^OU=([^,]+)/i) || [])[1] || dn;
+        var row    = document.createElement('div');
+        row.className    = 'd-flex align-items-center gap-2 p-2 border rounded bg-light';
+        row.style.cursor = 'pointer';
+        row.innerHTML =
+          '<span class="badge bg-secondary" style="min-width:80px;font-size:11px">' + ouName + '</span>' +
+          '<code class="flex-grow-1 small text-break" style="color:#0d6efd">' + dn + '</code>' +
+          '<i class="ti ti-copy flex-shrink-0 text-muted" style="font-size:14px"></i>';
+        row.addEventListener('click', function () {
+          navigator.clipboard.writeText(dn).then(function () {
+            row.style.background = '#d1e7dd';
+            setTimeout(function () { row.style.background = ''; }, 600);
+          }).catch(function () {
+            var ta = document.createElement('textarea');
+            ta.value = dn; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            row.style.background = '#d1e7dd';
+            setTimeout(function () { row.style.background = ''; }, 600);
+          });
+        });
+        listDiv.appendChild(row);
+      });
+      resDiv.classList.remove('d-none');
+    }).fail(function (xhr) {
+      loadDiv.classList.add('d-none');
+      var msg = '请求失败，请检查 AD 连接';
+      try { var r = JSON.parse(xhr.responseText); if (r && r.message) msg = r.message; } catch (e) {}
+      emptyDiv.textContent = msg;
+      emptyDiv.classList.remove('d-none');
+    });
+  }
+
+  /* ════════════════════════════════════════
+     Toast
+  ════════════════════════════════════════ */
+  function _showToast(ok, msg) {
+    var $wrap = $('#toast_wrap');
+    var $div  = $('<div class="toast align-items-center text-bg-' + (ok ? 'success' : 'danger') + ' border-0 show">' +
+      '<div class="d-flex"><div class="toast-body">' + msg + '</div>' +
+      '<button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>');
+    $wrap.append($div);
+    setTimeout(function () { $div.remove(); }, 3500);
+  }
+
+  /* ════════════════════════════════════════
+     初始化
+  ════════════════════════════════════════ */
+  $(document).ready(function () {
+    renderAll();
+    $('#btnSave').on('click', saveTemplate);
+    $('#btnLoad').on('click', loadTemplate);
+    $('#btnDelete').on('click', deleteTemplate);
+    $('#tplSelect').on('change', function () {
+      $('#btnDelete').prop('disabled', !(parseInt($(this).val()) || 0));
+    });
+    $('#btnOuSearch').on('click', searchOu);
+    document.getElementById('ouSearchInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') searchOu();
+    });
+  });
+
+{% endverbatim %}
+})();
+</script>
+<script src="/plugins/admanager/js/aduser.js"></script>

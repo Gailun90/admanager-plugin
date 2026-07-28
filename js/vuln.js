@@ -1,0 +1,546 @@
+/* js/vuln.js — 漏洞修复前端交互（导入/任务/规则） */
+(function () {
+  'use strict';
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+  function csrf() { return ($('#vuln-csrf') || {}).value || ''; }
+
+  function api(params, method = 'GET') {
+    let url = '/plugins/admanager/ajax/vuln_data.php';
+    const opt = { method, headers: { 'Accept': 'application/json' } };
+    if (method === 'GET') {
+      url += '?' + new URLSearchParams(params).toString();
+    } else {
+      const body = new URLSearchParams();
+      body.append('_glpi_csrf_token', csrf());
+      for (const [k, v] of Object.entries(params)) {
+        if (Array.isArray(v)) v.forEach(x => body.append(k, x));
+        else body.append(k, v);
+      }
+      opt.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      opt.headers['X-Glpi-Csrf-Token'] = csrf();  // 全局 CSRF 校验（inc/includes.php AJAX 分支用 header 取值）
+      opt.body = body.toString();
+    }
+    return fetch(url, opt).then(r => r.json()).then(d => {
+        // 每次响应都带回新的一次性 CSRF token，刷新页面级 #vuln-csrf（GLPI 合规做法）
+        if (d && d._csrf) {
+            const el = document.getElementById('vuln-csrf');
+            if (el) el.value = d._csrf;
+        }
+        return d;
+    });
+  }
+  const get = (p) => api(p, 'GET');
+  const post = (p) => api(p, 'POST');
+
+  function riskBadge(r) {
+    const m = { low: 'bg-success', medium: 'bg-warning text-dark', high: 'bg-danger' };
+    const t = { low: '低', medium: '中', high: '高' };
+    return `<span class="badge ${m[r] || 'bg-secondary'}">${t[r] || r}</span>`;
+  }
+  function statusBadge(s) {
+    const m = { pending: 'bg-secondary', approved: 'bg-success', rejected: 'bg-danger',
+                needs_manual: 'bg-info text-dark', dispatched: 'bg-primary',
+                done: 'bg-success', failed: 'bg-danger',
+                pending_verify: 'bg-warning text-dark', rollback_required: 'bg-danger' };
+    const t = { pending: '待审批', approved: '已批准', rejected: '已拒绝',
+                needs_manual: '已手动处理', dispatched: '已下发',
+                done: '执行成功', failed: '执行失败',
+                pending_verify: '待后校验', rollback_required: '需回滚' };
+    return `<span class="badge ${m[s] || 'bg-secondary'}">${t[s] || s}</span>`;
+  }
+  function ruleStatusBadge(s) {
+    const m = { active: 'bg-success', draft: 'bg-warning text-dark', disabled: 'bg-secondary' };
+    const t = { active: '生效', draft: '草稿', disabled: '停用' };
+    return `<span class="badge ${m[s] || 'bg-secondary'}">${t[s] || s}</span>`;
+  }
+  function fixLabel(t) {
+    return ({
+      registry_fix: '注册表修复', software_upgrade: '软件升级', software_uninstall: '软件卸载',
+      patch_install: '补丁安装', manual_review: '人工处理', unsupported: '暂不支持'
+    })[t] || t;
+  }
+  function esc(s) {
+    return (s == null ? '' : String(s))
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  function toast(msg, ok = true) {
+    // 简单提示：复用 GLPI 的 messageAfterRedirect 风格（此处用 alert 兜底）
+    if (window.GLPI && GLPI.renderMessages) {
+      GLPI.renderMessages(ok ? ['ok'] : ['error'], [msg], true);
+    } else {
+      alert((ok ? '✅ ' : '❌ ') + msg);
+    }
+  }
+
+  // ── 弹窗无障碍修复 ──
+  // Bootstrap 关闭弹窗时会先给 .modal 设 aria-hidden=true，再归还焦点；
+  // 若关闭瞬间焦点还在弹窗内的按钮上，Chromium 会报
+  // "Blocked aria-hidden on an element because its descendant retained focus"。
+  // 在 hide.bs.modal（早于 Bootstrap 设 aria-hidden）把焦点移出弹窗即可消除警告。
+  function initModalA11y() {
+    $$('.modal').forEach(m => {
+      m.addEventListener('hide.bs.modal', () => {
+        const a = document.activeElement;
+        if (a && m.contains(a)) a.blur();
+      });
+    });
+  }
+
+  // ── 客户端表格搜索（QID规则库 / 待处理任务 / 导入记录）──
+  function initTableSearch(inputSel, tableSel) {
+    const input = $(inputSel);
+    const table = $(tableSel);
+    if (!input || !table) return;
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      $$('tbody tr', table).forEach(tr => {
+        if (tr.dataset.id === undefined) return;  // 跳过「暂无数据」空行
+        const hit = !q || tr.textContent.toLowerCase().includes(q);
+        tr.style.display = hit ? '' : 'none';
+      });
+    });
+  }
+
+  // ── 导入记录页 ──
+  function initImportPage() {
+    const rows = $$('#imports-table tbody tr[data-id]');
+    if (!rows.length) return;
+
+    function poll() {
+      let pending = false;
+      rows.forEach(tr => {
+        const id = tr.dataset.id;
+        const st = tr.dataset.status;
+        if (st === 'pending' || st === 'parsing') {
+          pending = true;
+          get({ action: 'import_stats', id }).then(d => {
+            if (!d || d.error) return;
+            tr.dataset.status = d.status || st;
+            const stCell = $('.cell-status', tr);
+            const prCell = $('.cell-progress', tr);
+            const mrCell = $('.cell-match', tr);
+            if (stCell) stCell.innerHTML = statusBadge(d.status);
+            // 失败时把 error_message 放在 title 里方便排查
+            if (d.status === "failed" && d.error_message) {
+                if (stCell) stCell.firstElementChild.title = d.error_message;
+                tr.title = d.error_message;
+            }
+            if (prCell) prCell.textContent = `${d.processed_count || 0}/${d.row_count || 0}`;
+            if (mrCell) mrCell.textContent = ((d.match_rate || 0) * 100).toFixed(1) + '%';
+            const btn = $('.btn-view', tr);
+            if (btn) btn.disabled = (d.status !== 'completed');
+          }).catch(() => {});
+        }
+      });
+      if (pending) setTimeout(poll, 3000);
+    }
+    poll();
+
+    // 查看明细
+    $$('.btn-view').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const body = $('#findings-body');
+        if (body) body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">加载中…</td></tr>';
+        const md = new bootstrap.Modal($('#findingsModal'));
+        md.show();
+        Promise.all([
+          get({ action: 'findings', id, match: '' }),
+        ]).then(([list]) => {
+          if (!Array.isArray(list)) { body.innerHTML = '<tr><td colspan="6" class="text-danger">加载失败</td></tr>'; return; }
+          if (!list.length) { body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">无数据</td></tr>'; return; }
+          body.innerHTML = list.map(f => `<tr class="${f.match_confidence === 'unmatched' ? 'table-warning' : ''}">
+            <td>${esc(f.qid)}</td>
+            <td>${esc(f.title)}</td>
+            <td>${esc(f.ip)}</td>
+            <td>${esc(f.dns_name)}</td>
+            <td>${esc(f.asset_hostname || '—')}</td>
+            <td><span class="badge bg-info text-dark">${esc(f.match_confidence)}</span></td>
+          </tr>`).join('');
+        }).catch(() => { body.innerHTML = '<tr><td colspan="6" class="text-danger">加载失败</td></tr>'; });
+      });
+    });
+
+    // 重新解析（使用当前 AI 网关/提示配置重跑；覆盖旧任务）
+    $$('.btn-reparse').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const tr = btn.closest('tr');
+        if (!confirm(`确认重新解析批次 #${id}？将使用当前 AI 网关配置重新生成任务（原任务会被覆盖）。`)) return;
+        btn.disabled = true;
+        post({ action: 'reparse_import', import_id: id }).then(r => {
+          if (r && r.ok) {
+            tr.dataset.status = 'parsing';
+            const stCell = $('.cell-status', tr);
+            const prCell = $('.cell-progress', tr);
+            const mrCell = $('.cell-match', tr);
+            if (stCell) stCell.innerHTML = statusBadge('parsing');
+            if (prCell) prCell.textContent = '0/0';
+            if (mrCell) mrCell.textContent = '—';
+            const vbtn = $('.btn-view', tr);
+            if (vbtn) vbtn.disabled = true;
+            toast(r.message);
+            poll();  // 重新进入轮询
+          } else {
+            btn.disabled = false;
+            toast((r && r.message) || '重新解析失败', false);
+          }
+        }).catch(() => { btn.disabled = false; toast('网络错误', false); });
+      });
+    });
+  }
+
+  // ── 待处理任务页 ──
+  const EXEC_FIX_TYPES = ['registry_fix', 'software_uninstall', 'software_upgrade', 'patch_install'];
+
+  function initTasksPage() {
+    if (!$('#tasks-table')) return;
+
+    function onTaskAct(e) {
+      const btn = e.currentTarget;
+      const tr = btn.closest('tr');
+      const id = tr.dataset.id;
+      const action = btn.dataset.action; // approve|reject|mark_manual|dispatch|rematch
+      if (action === 'dispatch' && !confirm(`确认将任务 #${id} 下发到客户端执行？`)) return;
+      if (action === 'rematch' && !confirm(`确认对任务 #${id} 重新匹配软件安装包？`)) return;
+      post({ action, task_id: id }).then(r => {
+        if (r && r.ok) {
+          if (action === 'rematch') {
+            // 重新匹配：成功则补「确认下发」，失败则保留「重新匹配」并提示
+            const cell = tr.querySelector('td.text-nowrap');
+            const warn = $('.rematch-warn', tr);
+            if (warn) warn.remove();
+            if (r.task && r.task.matched_package_id) {
+              tr.dataset.matched = r.task.matched_package_id;
+              $$('.task-act', tr).forEach(b => b.remove());
+              if (cell) cell.appendChild(makeDispatchBtn());
+              toast('已匹配到安装包，可点「确认下发」执行升级');
+            } else {
+              toast((r.message || '仍未匹配到安装包，请先在软件部署库上传对应安装包'), false);
+            }
+          } else {
+            rowAfterAction(tr, r.task || { status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : action === 'dispatch' ? 'dispatched' : 'needs_manual' });
+            toast(r.message);
+          }
+        }
+        else toast((r && r.message) || '操作失败', false);
+      }).catch(() => toast('网络错误', false));
+    }
+
+    function makeDispatchBtn() {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-xs btn-primary task-act';
+      btn.dataset.action = 'dispatch';
+      btn.title = '确认下发执行';
+      btn.innerHTML = '<i class="ti ti-send"></i>';
+      btn.addEventListener('click', onTaskAct);
+      return btn;
+    }
+
+    function makeRematchBtn() {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-xs btn-warning task-act';
+      btn.dataset.action = 'rematch';
+      btn.title = '重新匹配软件安装包';
+      btn.innerHTML = '<i class="ti ti-refresh"></i> 重新匹配';
+      btn.addEventListener('click', onTaskAct);
+      return btn;
+    }
+
+    // 批准（或被门禁拦下停在 approved）时，按类型渲染可执行动作
+    function renderApprovedActions(tr, task, blockReason) {
+      const cell = tr.querySelector('td.text-nowrap');
+      if (!cell) return;
+      $$('.task-act', tr).forEach(b => b.remove());
+      $('.rematch-warn', tr)?.remove();
+      $('.block-reason', tr)?.remove();
+
+      if (!EXEC_FIX_TYPES.includes(task.fix_type)) {
+        // 非可执行类型 → 展示原因
+        if (blockReason) {
+          const w = document.createElement('div');
+          w.className = 'block-reason small text-warning mt-1';
+          w.textContent = blockReason;
+          cell.appendChild(w);
+        }
+        return;
+      }
+      // 软件升级未匹配到安装包：展示「重新匹配」+ 提示
+      if (task.fix_type === 'software_upgrade' && !task.matched_package_id) {
+        cell.appendChild(makeRematchBtn());
+        const w = document.createElement('div');
+        w.className = 'rematch-warn small text-warning mt-1';
+        w.innerHTML = '未匹配安装包 · <a href="/plugins/admanager/front/deploy.php" target="_blank" class="link-warning">去软件部署库看看</a>';
+        cell.appendChild(w);
+        return;
+      }
+      // 门禁拦下（有 blockReason）→ 展示原因，但仍给出人工确认下发的入口
+      if (blockReason) {
+        const w = document.createElement('div');
+        w.className = 'block-reason small text-warning mt-1';
+        w.textContent = '未自动下发：' + blockReason + ' — 可点击下方按钮确认下发';
+        cell.appendChild(w);
+      }
+      cell.appendChild(makeDispatchBtn());
+    }
+
+    function rowAfterAction(tr, task) {
+      const st = task.status;
+      $('.cell-status', tr).innerHTML = statusBadge(st);
+      const cb = $('.task-check', tr);
+      if (cb) { cb.checked = false; cb.disabled = true; }
+      if (st === 'approved' || st === 'dispatched' || st === 'done') tr.classList.remove('table-danger');
+      // 批准但被门禁拦下（仍为 approved）且属可执行类型 → 动态补「确认下发」/「重新匹配」
+      if (st === 'approved') renderApprovedActions(tr, task, task.dispatch_block_reason || '');
+    }
+
+    $$('.task-act').forEach(btn => btn.addEventListener('click', onTaskAct));
+
+    const batchBtn = $('#batch-approve');
+    if (batchBtn) {
+      batchBtn.addEventListener('click', () => {
+        const ids = $$('.task-check:checked').map(c => c.value);
+        if (!ids.length) { toast('请先勾选任务', false); return; }
+        if (!confirm(`确认批量批准 ${ids.length} 个任务？\n（注册表修复/软件卸载类将自动下发到客户端执行）`)) return;
+        post({ action: 'batch_approve', 'task_ids[]': ids }).then(r => {
+          if (r && r.ok) {
+            const dispatched = new Set(((r.result && r.result.dispatched) || []).map(String));
+            $$('.task-check:checked').forEach(c => {
+              const tr = c.closest('tr');
+              const isDispatched = dispatched.has(String(c.value));
+              // 已自动下发的显示「已下发」，其余显示「已批准」
+              $('.cell-status', tr).innerHTML = statusBadge(isDispatched ? 'dispatched' : 'approved');
+              c.checked = false; c.disabled = true;
+              // 被门禁拦下（approved）且可执行类型 → 补「确认下发」或「重新匹配」
+              if (!isDispatched) {
+                // 查该任务的 held reason
+                const held = ((r.result && r.result.held) || []).find(h => String(h.id) === String(c.value));
+                const blockReason = held ? held.reason : '';
+                const miniTask = {
+                  fix_type: tr.dataset.fix,
+                  matched_package_id: tr.dataset.matched ? Number(tr.dataset.matched) : null,
+                };
+                renderApprovedActions(tr, miniTask, blockReason);
+              }
+            });
+            // held 原因逐条打到控制台，便于排查
+            ((r.result && r.result.held) || []).forEach(h => console.warn('[Vuln] held #' + h.id + ': ' + h.reason));
+            toast(r.message || `已批准 ${ids.length} 个任务`);
+          } else toast((r && r.message) || '批量批准失败', false);
+        }).catch(() => toast('网络错误', false));
+      });
+    }
+
+    // 详情
+    $$('.btn-detail').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const body = $('#task-detail-body');
+        body.innerHTML = '加载中…';
+        new bootstrap.Modal($('#taskModal')).show();
+        get({ action: 'task_detail', id }).then(d => {
+          if (!d || d.error) { body.innerHTML = '<span class="text-danger">加载失败</span>'; return; }
+          const aj = d.action_json || {};
+          let html = `<dl class="row small mb-0">
+            <dt class="col-4">任务ID</dt><dd class="col-8">${esc(d.id)}</dd>
+            <dt class="col-4">QID</dt><dd class="col-8">${esc(d.qid)}</dd>
+            <dt class="col-4">标题</dt><dd class="col-8">${esc(d.title)}</dd>
+            <dt class="col-4">资产</dt><dd class="col-8">${esc(d.asset_hostname || (d.ip || d.dns_name) || '未匹配')}</dd>
+            <dt class="col-4">修复类型</dt><dd class="col-8">${fixLabel(d.fix_type)}</dd>
+            <dt class="col-4">风险</dt><dd class="col-8">${riskBadge(d.risk_level)}</dd>
+            <dt class="col-4">状态</dt><dd class="col-8">${statusBadge(d.status)}</dd>
+            ${(d.matched_package_name) ? `<dt class="col-4">匹配安装包</dt><dd class="col-8">${esc(d.matched_package_name)}（包ID ${esc(d.matched_package_id)}）</dd>` : ''}
+            ${(d.needs_reboot) ? `<dt class="col-4">重启状态</dt><dd class="col-8"><span class="badge bg-warning text-dark">已完成（待重启生效）</span></dd>` : ''}
+            <dt class="col-4">建议摘要</dt><dd class="col-8">${esc(d.action_summary || '')}</dd>
+            <dt class="col-4">溯源</dt><dd class="col-8"><code>${esc((aj._source) || '')}</code></dd>
+            ${d.result_log ? `<dt class="col-4">执行结果</dt><dd class="col-8"><pre class="small bg-light p-2 mb-0">${esc(d.result_log)}</pre></dd>` : ''}
+          </dl>
+          <div class="mt-2"><strong>原始 Results：</strong><pre class="small bg-light p-2">${esc(d.results_raw || '')}</pre></div>
+          <div><strong>Solution：</strong><pre class="small bg-light p-2">${esc(d.solution_raw || '')}</pre></div>`;
+          body.innerHTML = html;
+        }).catch(() => { body.innerHTML = '<span class="text-danger">加载失败</span>'; });
+      });
+    });
+  }
+
+  // ── QID 规则库页 ──
+  function initRulesPage() {
+    if (!$('#rules-table')) return;
+
+    // 创建
+    const createForm = $('#rule-create-form');
+    if (createForm) {
+      createForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(createForm);
+
+        // registry_fix: 若未手动填写 action_template，从注册表字段拼接
+        if (fd.get('fix_type') === 'registry_fix' && !fd.get('action_template')?.trim()) {
+          const root   = createForm.querySelector('[name="reg_root"]')?.value?.trim() || 'HKLM';
+          const subkey = createForm.querySelector('[name="reg_subkey"]')?.value?.trim() || '';
+          const name   = createForm.querySelector('[name="reg_name"]')?.value?.trim() || '';
+          const action = createForm.querySelector('[name="reg_action"]')?.value || 'set';
+          const value  = createForm.querySelector('[name="reg_value"]')?.value || '';
+          const type   = createForm.querySelector('[name="reg_type"]')?.value || 'string';
+          if (subkey) {
+            fd.set('action_template', JSON.stringify({
+              changes: [{ action, hive: root, path: subkey, value: name, data: value, type }]
+            }));
+          }
+        }
+
+        const params = { action: 'create_rule' };
+        fd.forEach((v, k) => { if (k !== '_glpi_csrf_token') params[k] = v; });
+        post(params).then(r => {
+          if (r && r.ok) { toast(r.message); location.reload(); }
+          else toast((r && r.message) || '创建失败', false);
+        }).catch(() => toast('网络错误', false));
+      });
+    }
+
+    // ── 创建表单 fix_type 切换 → show/hide 注册表字段 ──
+    const createFixType = $('[name="fix_type"]', createForm);
+    if (createFixType) {
+      createFixType.addEventListener('change', () => {
+        const show = createFixType.value === 'registry_fix';
+        const el = $('#registry-fields-create');
+        if (el) el.style.display = show ? '' : 'none';
+      });
+    }
+    // 编辑弹窗 fix_type 切换
+    const editFixType = $('#edit_fix_type');
+    if (editFixType) {
+      editFixType.addEventListener('change', () => {
+        const show = editFixType.value === 'registry_fix';
+        const el = $('#registry-fields-edit');
+        if (el) el.style.display = show ? '' : 'none';
+      });
+    }
+
+    // 编辑
+    $$('.btn-edit-rule').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tr = btn.closest('tr');
+        $('#edit_rule_id').value = tr.dataset.id;
+        $('#edit_qid').value = tr.dataset.qid;
+        $('#edit_fix_type').value = tr.dataset.fix;
+        $('#edit_default_risk').value = tr.dataset.risk;
+        $('#edit_status').value = tr.dataset.status;
+        $('#edit_notes').value = tr.dataset.notes || '';
+        $('#edit_rollback').value = tr.dataset.rollback || '';
+        new bootstrap.Modal($('#editRuleModal')).show();
+      });
+    });
+    const editForm = $('#rule-edit-form');
+    if (editForm) {
+      editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(editForm);
+
+        // registry_fix: 若未手动填写 rollback_plan 但有注册表字段，自动拼接
+        if (fd.get('fix_type') === 'registry_fix' && !fd.get('action_template')?.trim()) {
+          const root   = editForm.querySelector('[name="reg_root"]')?.value?.trim() || 'HKLM';
+          const subkey = editForm.querySelector('[name="reg_subkey"]')?.value?.trim() || '';
+          const name   = editForm.querySelector('[name="reg_name"]')?.value?.trim() || '';
+          const action = editForm.querySelector('[name="reg_action"]')?.value || 'set';
+          const value  = editForm.querySelector('[name="reg_value"]')?.value || '';
+          const type   = editForm.querySelector('[name="reg_type"]')?.value || 'string';
+          if (subkey) {
+            fd.set('action_template', JSON.stringify({
+              changes: [{ action, hive: root, path: subkey, value: name, data: value, type }]
+            }));
+          }
+        }
+
+        const params = { action: 'update_rule' };
+        fd.forEach((v, k) => { if (k !== '_glpi_csrf_token') params[k] = v; });
+        post(params).then(r => {
+          if (r && r.ok) { toast(r.message); location.reload(); }
+          else toast((r && r.message) || '更新失败', false);
+        }).catch(() => toast('网络错误', false));
+      });
+    }
+
+    // 删除
+    $$('.btn-del-rule').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        if (!confirm('确认删除该规则？（QID ' + id + '）')) return;
+        post({ action: 'delete_rule', rule_id: id }).then(r => {
+          if (r && r.ok) { toast(r.message); location.reload(); }
+          else toast((r && r.message) || '删除失败', false);
+        }).catch(() => toast('网络错误', false));
+      });
+    });
+  }
+
+  // ── 全局熔断开关 ──
+  function initKillSwitch() {
+    const card = $('#kill-switch-card');
+    const statusEl = $('#kill-switch-status');
+    const toggleBtn = $('#kill-switch-toggle');
+    if (!card || !statusEl || !toggleBtn) return;
+
+    function refresh() {
+      get({ action: 'kill_switch_status' }).then(d => {
+        const on = d && d.kill_switch;
+        if (on) {
+          statusEl.className = 'badge bg-danger';
+          statusEl.textContent = '熔断中';
+          toggleBtn.className = 'btn btn-sm btn-success';
+          toggleBtn.innerHTML = '<i class="ti ti-shield-check me-1"></i>关闭熔断';
+          card.classList.add('border-danger');
+          card.querySelector('.card-header')?.classList.add('bg-danger', 'bg-opacity-10', 'text-danger');
+        } else {
+          statusEl.className = 'badge bg-success';
+          statusEl.textContent = '正常';
+          toggleBtn.className = 'btn btn-sm btn-outline-danger';
+          toggleBtn.innerHTML = '<i class="ti ti-shield-off me-1"></i>开启熔断';
+          card.classList.remove('border-danger');
+          const h = card.querySelector('.card-header');
+          if (h) { h.classList.remove('bg-danger', 'bg-opacity-10', 'text-danger'); }
+        }
+        toggleBtn.disabled = false;
+      }).catch(() => {
+        statusEl.textContent = '查询失败';
+        toggleBtn.disabled = true;
+      });
+    }
+    refresh();
+
+    toggleBtn.addEventListener('click', () => {
+      const cur = statusEl.textContent;
+      const label = cur === '熔断中' ? '关闭熔断，恢复自动下发？' : '开启熔断，暂停所有自动下发？（已下发的任务不受影响，人工确认下发也不受影响）';
+      if (!confirm(label)) return;
+      toggleBtn.disabled = true;
+      post({ action: 'kill_switch_toggle' }).then(r => {
+        if (r && r.ok) {
+          toast(r.message || '已切换');
+          refresh();
+        } else {
+          toast((r && r.message) || '切换失败', false);
+          toggleBtn.disabled = false;
+        }
+      }).catch(() => {
+        toast('网络错误', false);
+        toggleBtn.disabled = false;
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initModalA11y();
+    initImportPage();
+    initTasksPage();
+    initRulesPage();
+    initKillSwitch();
+    // 客户端表格搜索（QID规则库 / 待处理任务 / 导入记录）
+    initTableSearch('#import-search', '#imports-table');
+    initTableSearch('#rules-search', '#rules-table');
+    initTableSearch('#tasks-search', '#tasks-table');
+  });
+})();

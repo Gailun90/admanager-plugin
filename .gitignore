@@ -1,0 +1,5 @@
+*.bak
+*.bak_*
+*.log
+.DS_Store
+client/*.zip

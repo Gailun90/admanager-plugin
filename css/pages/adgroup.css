@@ -1,0 +1,15 @@
+/* ============================================
+   adgroup 安全组管理 — 页面专用样式
+   只有安全组页面才会加载此文件
+   （基础列表项 / 成员面板统计样式已统一在 admanager.css，本文件仅保留差异项）
+   ============================================ */
+
+/* ── 安全组列表项 active 态：统一为绿色强调色（覆盖 Tabler 蓝） ── */
+.adm-page .group-list .list-group-item.active {
+    background: var(--adm-active-bg) !important;
+    color: var(--adm-active-text) !important;
+    border-color: var(--adm-active-border) !important;
+}
+.adm-page .group-list .list-group-item.active .text-muted {
+    color: var(--adm-text-muted) !important;
+}

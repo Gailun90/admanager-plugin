@@ -1,0 +1,154 @@
+/* ============================================
+   admanager 插件 — 统一布局骨架 v1.1
+
+   原则：
+   1. 不写任何 calc(100vh - xxx)，不依赖 viewport
+   2. 用 height:100% + flex 一路从 GLPI 框架继承高度
+   3. 全部 scoped 到 .adm-* 前缀
+   4. 只控制布局，不碰颜色/字体/间距
+   ============================================ */
+
+/* ═══════════════════════════════════════════
+   基础布局单元
+   ═══════════════════════════════════════════ */
+
+/* 页面根容器 */
+.adm-page {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+/* 填充卡片：占满父容器剩余高度 */
+.adm-fill-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 可滚动区域 — 替代所有 calc(100vh - xxx) */
+.adm-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+
+/* ═══════════════════════════════════════════
+   页面类型
+   ═══════════════════════════════════════════ */
+
+/* 类型1：查询列表页
+   搜索卡片 → 表格卡片 → 页面自然滚动 */
+.adm-list-page {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+/* 类型2：左右分栏页
+   高度偏移量集中在 --adm-chrome-offset（navbar + 页面 margin-top），便于统一调整 */
+.adm-split-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--adm-chrome-offset, 76px));
+  overflow: hidden;
+}
+
+/* 分栏内部行 */
+.adm-split-body {
+  flex: 1;
+  display: flex;
+  gap: .75rem;
+  min-height: 0;
+  overflow: hidden;
+}
+@media (max-width: 1199.98px) {
+  .adm-split-body {
+    flex-direction: column;
+  }
+}
+
+.adm-split-left {
+  flex: 0 0 380px;
+  max-width: 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.adm-split-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+@media (max-width: 1199.98px) {
+  .adm-split-left {
+    flex: 0 0 auto;
+    max-width: none;
+  }
+}
+
+/* 类型3：表单页 */
+.adm-form-page {
+  max-width: 960px;
+}
+
+/* 类型4：仪表盘页 */
+.adm-dash-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+
+/* ═══════════════════════════════════════════
+   表格固定表头（按需使用，不再全局生效）
+   ═══════════════════════════════════════════ */
+
+/* 滚动容器内的表格固定表头 */
+.adm-fixed-header thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--tblr-bg-surface, #fff);
+}
+
+/* 表格横向滚动容器已统一到 admanager.css 的 .ad-table-wrap（避免重复定义） */
+
+
+/* ═══════════════════════════════════════════
+   工具类
+   ═══════════════════════════════════════════ */
+
+.adm-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--adm-space-sm, 8px);
+  margin-bottom: var(--adm-space-lg, 24px);
+  padding-bottom: var(--adm-space-sm, 8px);
+  border-bottom: 1px solid var(--adm-border, #d1d0c8);
+}
+.adm-toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: var(--adm-space-sm, 8px);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--adm-text, #3d3d3a);
+}
+.adm-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--adm-space-xs, 4px);
+  flex-wrap: wrap;
+}
+
+/* 搜索卡片 */
+.adm-search-card .card-body {
+  padding: var(--adm-space-sm, 8px) var(--adm-space-md, 16px);
+}

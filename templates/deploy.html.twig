@@ -1,0 +1,316 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_new_task.php">
+        <i class="ti ti-send me-1"></i>新建部署任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/deploy.php">
+        <i class="ti ti-list-check me-1"></i>部署任务列表
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_package.php">
+        <i class="ti ti-package me-1"></i>安装包库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_config.php">
+        <i class="ti ti-settings-cog me-1"></i>部署配置
+      </a>
+    </li>
+  </ul>
+
+  <div class="card mb-2">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      <h5 class="mb-0"><i class="ti ti-list-check me-1"></i>部署任务（最近 30 条）</h5>
+      <div class="d-flex gap-2">
+        {% if can_write %}
+        <a href="/plugins/admanager/front/deploy_new_task.php" class="btn btn-sm btn-primary">
+          <i class="ti ti-plus me-1"></i>新建部署任务
+        </a>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+          <i class="ti ti-refresh me-1"></i>刷新
+        </button>
+      </div>
+    </div>
+    {% if tasks is empty %}
+      <div class="card-body text-muted text-center py-4">暂无部署任务</div>
+    {% else %}
+    <div class="table-responsive">
+      <div class="ad-table-wrap">
+<table class="table adm-table table-hover table-sm mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>任务名称</th><th>安装包</th><th>目标</th>
+            <th>进度</th><th>状态</th><th>创建时间</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tasks %}
+          {% set prog = t.progress %}
+          <tr data-task-id="{{ t.id }}" data-task-status="{{ (prog.pending ?? 0) + (prog.running ?? 0) > 0 ? 'running' : 'done' }}">
+            <td>
+              <a href="#" class="fw-bold text-decoration-none task-detail-btn"
+                 data-id="{{ t.id }}" data-name="{{ t.name }}">
+                {{ t.name }}
+              </a>
+            </td>
+            <td class="small">
+              {% if t.task_type == 'uninstall' %}
+                <span class="badge bg-warning text-dark">卸载</span>
+                {{ t.uninstall_target }}
+              {% else %}
+                {{ t.package_name }} <span class="text-muted">{{ t.package_version }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if t.target_type == 'all' %}
+                <span class="badge bg-primary">全部</span>
+              {% elseif t.target_type == 'group' %}
+                <span class="badge bg-info text-dark" title="分组部署">👥 分组</span>
+              {% elseif t.target_type == 'client' %}
+                <span class="badge bg-secondary">单台</span>
+                {% if t.target_name %}<span class="small ms-1 fw-semibold">{{ t.target_name }}</span>{% endif %}
+              {% else %}
+                <span class="badge bg-secondary">{{ t.target_type }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="progress">
+                <div class="progress-bar bg-success" style="width:{{ prog.total > 0 ? (prog.success / prog.total * 100)|round : 0 }}%"></div>
+                <div class="progress-bar bg-danger"  style="width:{{ prog.total > 0 ? (prog.failed  / prog.total * 100)|round : 0 }}%"></div>
+              </div>
+              <small class="text-muted">
+                OK:{{ prog.success }} ERR:{{ prog.failed }}
+                {% if prog.pending > 0 %}WAIT:{{ prog.pending }}{% endif %}
+                {% if prog.deferred > 0 %}DEFER:{{ prog.deferred }}{% endif %}
+                / {{ prog.total }}
+              </small>
+            </td>
+            <td class="task-status-badge">
+              {% if t.status == 'active' %}
+                <span class="badge bg-success">进行中</span>
+              {% elseif t.status == 'completed' and (prog.failed ?? 0) > 0 %}
+                <span class="badge bg-warning text-dark">部分失败</span>
+              {% elseif t.status == 'completed' %}
+                <span class="badge bg-info">已完成</span>
+              {% elseif t.status == 'cancelled' %}
+                <span class="badge bg-secondary">已取消</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ t.status }}</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">
+              {{ t.created_at ? t.created_at|slice(0,16)|replace({'T':' '}) : '—' }}
+            </td>
+            <td>
+              <div class="btn-group btn-group-xs">
+              {% if can_write and t.status == 'active' %}
+              <form method="post"
+                    onsubmit="return confirm('确定取消任务 {{ t.name|e('js') }}？')">
+                <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="_action" value="cancel_task">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+                <button type="submit" class="btn btn-xs btn-outline-secondary" title="取消任务">
+                  <i class="ti ti-circle-x"></i>
+                </button>
+              </form>
+              {% endif %}
+              {% if can_write and prog.failed > 0 %}
+              <form method="post"
+                    onsubmit="return confirm('重置失败记录？')">
+                <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="_action" value="reset_failed">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+                <button type="submit" class="btn btn-xs btn-outline-warning" title="重置失败">
+                  <i class="ti ti-refresh"></i>
+                </button>
+              </form>
+              {% endif %}
+              {% if can_write %}
+              <form method="post"
+                    onsubmit="return confirm('确定删除任务 {{ t.name|e('js') }}？此操作不可恢复。')">
+                <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="_action" value="delete_task">
+                <input type="hidden" name="task_id" value="{{ t.id }}">
+                <button type="submit" class="btn btn-xs btn-outline-danger" title="删除任务">
+                  <i class="ti ti-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="modal fade" id="taskDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-fullscreen">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title" id="taskDetailTitle">任务明细</h5>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+          <span id="taskDetailSummary" class="small text-muted"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body p-0">
+        <div id="taskDetailBody" class="text-center py-4 text-muted">加载中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 任务明细弹窗 ──
+document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    var id   = btn.dataset.id;
+    var name = btn.dataset.name;
+    document.getElementById('taskDetailTitle').textContent = '任务明细：' + name;
+    document.getElementById('taskDetailBody').innerHTML = '<div class="text-center py-4 text-muted">加载中...</div>';
+    new bootstrap.Modal(document.getElementById('taskDetailModal')).show();
+
+    fetch('?action=targets&task_id=' + id)
+      .then(function(r){ return r.json(); })
+      .then(function(rows) {
+        if (!rows.length) {
+          document.getElementById('taskDetailBody').innerHTML = '<div class="text-center py-4 text-muted">暂无终端执行记录</div>';
+          return;
+        }
+        var badge = function(s) {
+          var map = { pending:'<span class="badge bg-secondary">等待</span>', running:'<span class="badge bg-primary">执行中</span>', success:'<span class="badge bg-success">成功</span>', failed:'<span class="badge bg-danger">失败</span>', deferred:'<span class="badge bg-warning text-dark">推迟</span>' };
+          return map[s] || '<span class="badge bg-light text-dark">' + s + '</span>';
+        };
+        var esc = function(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
+        var total = rows.length;
+        var okCnt = rows.filter(function(r){ return r.status === 'success'; }).length;
+        var failCnt = rows.filter(function(r){ return r.status === 'failed'; }).length;
+        var pendCnt = rows.filter(function(r){ return r.status === 'pending' || r.status === 'running'; }).length;
+        document.getElementById('taskDetailSummary').textContent =
+          '共 ' + total + ' 台 | 成功 ' + okCnt + ' | 失败 ' + failCnt + (pendCnt ? ' | 待执行 ' + pendCnt : '');
+
+        var html = '<div class="table-responsive" style="max-height:60vh;overflow-y:auto">'
+          + '<table class="table table-sm table-hover mb-0 align-top"><thead class="table-light sticky-top"><tr>'
+          + '<th style="width:160px">计算机名</th>'
+          + '<th style="width:80px">状态</th>'
+          + '<th style="width:50px">重试</th>'
+          + '<th style="width:110px">执行时间</th>'
+          + '<th>失败原因</th>'
+          + '<th style="width:60px">日志</th>'
+          + '</tr></thead><tbody>';
+        rows.forEach(function(r) {
+          var isFail = r.status === 'failed';
+          var failMsg = isFail && r.message ? r.message : '';
+          html += '<tr class="' + (isFail ? 'table-danger' : '') + '">'
+            + '<td><strong class="small">' + esc(r.hostname) + '</strong></td>'
+            + '<td>' + badge(r.status) + '</td>'
+            + '<td class="small text-muted text-center">' + (r.retry_count || 0) + '</td>'
+            + '<td class="small text-muted">' + (r.executed_at ? r.executed_at.substring(0,16).replace('T',' ') : '—') + '</td>'
+            + '<td class="small' + (isFail ? ' text-danger fw-semibold' : ' text-muted') + '" style="max-width:500px;word-break:break-all;white-space:pre-wrap">' + esc(failMsg) + '</td>'
+            + '<td>' + (r.install_log
+                ? '<button class="btn btn-xs btn-outline-info log-btn" data-host="' + esc(r.hostname) + '" data-log="' + esc(r.install_log) + '">查看</button>'
+                : '—')
+            + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('taskDetailBody').innerHTML = html;
+        setTimeout(function() {
+          document.querySelectorAll('.log-btn').forEach(function(b) {
+            b.onclick = function() {
+              var div = document.createElement('div');
+              div.innerHTML = '<div class="modal fade" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">' + esc(this.dataset.host) + ' 执行日志</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><pre style="max-height:500px;overflow:auto;font-size:.75rem;background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:4px;white-space:pre-wrap;word-break:break-all">' + esc(this.dataset.log) + '</pre></div></div></div></div>';
+              document.body.appendChild(div);
+              var m = new bootstrap.Modal(div.querySelector('.modal'));
+              m.show();
+              div.querySelector('.modal').addEventListener('hidden.bs.modal', function() { div.remove(); });
+            };
+          });
+        }, 100);
+      })
+      .catch(function() {
+        document.getElementById('taskDetailBody').innerHTML = '<div class="alert alert-danger m-3">加载失败，请稍后重试</div>';
+      });
+  });
+});
+</script>
+
+<script>
+(function(){
+  // ── 任务进度自动轮询（5s，有活跃任务时）─────────────────────────────────
+  var POLL_INTERVAL = 5000;
+  var pollTimer = null;
+
+  function hasActiveTasks() {
+    return document.querySelectorAll('[data-task-status="pending"],[data-task-status="running"]').length > 0;
+  }
+
+  function updateTaskRow(task) {
+    var prog = task.progress || {};
+    var total = prog.total || 0;
+    var row = document.querySelector('[data-task-id="' + task.id + '"]');
+    if (!row) return;
+
+    var bar = row.querySelector('.progress-bar.bg-success');
+    var barFail = row.querySelector('.progress-bar.bg-danger');
+    if (bar && total > 0) {
+      bar.style.width = Math.round(prog.success / total * 100) + '%';
+      if (barFail) barFail.style.width = Math.round(prog.failed / total * 100) + '%';
+    }
+
+    var statusCell = row.querySelector('.task-status-badge');
+    if (statusCell) {
+      var pend = (prog.pending||0) + (prog.running||0);
+      if (pend > 0) {
+        statusCell.innerHTML = '<span class="badge bg-warning text-dark"><i class="ti ti-loader-2 ti-spin"></i> 执行中 ' + pend + '/' + total + '</span>';
+        row.dataset.taskStatus = 'running';
+      } else if ((prog.failed||0) > 0 && (prog.success||0) === 0) {
+        statusCell.innerHTML = '<span class="badge bg-danger">全部失败</span>';
+        row.dataset.taskStatus = 'done';
+      } else if ((prog.failed||0) > 0) {
+        statusCell.innerHTML = '<span class="badge bg-warning text-dark"><i class="ti ti-alert-triangle"></i> 部分失败 ' + (prog.success||0) + '/' + total + '</span>';
+        row.dataset.taskStatus = 'done';
+      } else {
+        statusCell.innerHTML = '<span class="badge bg-success"><i class="ti ti-check"></i> 完成 ' + (prog.success||0) + '/' + total + '</span>';
+        row.dataset.taskStatus = 'done';
+      }
+    }
+  }
+
+  function pollTasks() {
+    if (!hasActiveTasks()) { stopPoll(); return; }
+    fetch(window.location.pathname + '?_ajax=task_progress', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(tasks){
+      tasks.forEach(updateTaskRow);
+      if (!hasActiveTasks()) stopPoll();
+    })
+    .catch(function(){});
+  }
+
+  function startPoll() {
+    if (pollTimer) return;
+    pollTimer = setInterval(pollTasks, POLL_INTERVAL);
+  }
+
+  function stopPoll() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  if (hasActiveTasks()) startPoll();
+})();
+</script>
+<script src="/plugins/admanager/js/deploy.js"></script>

@@ -1,0 +1,556 @@
+<div class="adm-page">
+
+  {# ── 顶栏 ── #}
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <h5 class="mb-0"><i class="ti ti-brand-wechat me-2"></i>通讯平台关联管理</h5>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" id="btnSyncStatus" title="从各平台拉取用户状态并与AD同步">
+        <i class="ti ti-refresh me-1"></i>状态同步
+      </button>
+    </div>
+  </div>
+
+  {# ── 平台 Tab ── #}
+  <ul class="nav nav-tabs mb-3" id="platformTabs">
+    {% for key, p in platforms %}
+    <li class="nav-item">
+      <button class="nav-link {% if loop.first %}active{% endif %}" data-platform="{{ key }}"
+              data-bs-toggle="tab" data-bs-target="#tab-{{ key }}">
+        {% if key == 'wecom' %}<i class="ti ti-brand-wechat me-1"></i>
+        {% elseif key == 'dingtalk' %}<i class="ti ti-brand-dingtalk me-1 text-primary"></i>
+        {% else %}<i class="ti ti-message-dots me-1"></i>{% endif %}
+        {{ p.label }}
+        {% if p.enabled %}
+          <span class="badge bg-success-subtle text-success ms-1">已启用</span>
+        {% else %}
+          <span class="badge bg-secondary-subtle text-dark ms-1">未配置</span>
+        {% endif %}
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tab-content">
+  {% for key, p in platforms %}
+  <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="tab-{{ key }}">
+
+    {% if not p.enabled %}
+    {# 未配置提示 #}
+    <div class="alert alert-warning d-flex align-items-center gap-3">
+      <i class="ti ti-alert-triangle fs-4"></i>
+      <div>
+        <b>{{ p.label }} 尚未配置</b>
+        <div class="small mt-1">请前往 <a href="/plugins/admanager/front/config.form.php">连接配置</a> 填写 {{ p.label }} 的 AppID / AppSecret 并启用。</div>
+      </div>
+    </div>
+    {% else %}
+
+    <div class="row g-3">
+
+      {# ══ 左：平台用户列表 ══ #}
+      <div class="col-12 col-xl-6">
+        <div class="card h-100">
+          <div class="card-header py-2 d-flex align-items-center gap-2">
+            <span class="fw-bold"><i class="ti ti-users me-1"></i>{{ p.label }} 用户</span>
+            <button class="btn btn-xs btn-outline-secondary ms-auto" onclick="loadPlatformUsers('{{ key }}')">
+              <i class="ti ti-refresh"></i>
+            </button>
+            <button class="btn btn-xs btn-outline-primary" onclick="openAutoMatch('{{ key }}')">
+              <i class="ti ti-wand me-1"></i>自动匹配
+            </button>
+          </div>
+          <div class="card-body p-0">
+            <div id="platform-users-{{ key }}" class="text-center text-muted py-5 small">
+              <i class="ti ti-cloud-download"></i>
+              <p class="mt-2">点击右上角刷新按钮加载平台用户</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ══ 右：部门映射 + 绑定统计 ══ #}
+      <div class="col-12 col-xl-6">
+        <div class="card mb-3">
+          <div class="card-header py-2 d-flex align-items-center justify-content-between">
+            <span class="fw-bold"><i class="ti ti-hierarchy me-1"></i>OU → 部门映射</span>
+            {% if can_write %}
+            <button class="btn btn-xs btn-primary" onclick="openDeptMapping('{{ key }}')">
+              <i class="ti ti-plus me-1"></i>添加映射
+            </button>
+            {% endif %}
+          </div>
+          <div class="card-body p-0">
+            <div id="dept-mappings-{{ key }}">
+              <div class="text-center text-muted py-3 small">加载中...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header py-2">
+            <span class="fw-bold"><i class="ti ti-link me-1"></i>绑定记录</span>
+          </div>
+          <div class="card-body p-0">
+            <div id="bindings-{{ key }}">
+              <div class="text-center text-muted py-3 small">加载中...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  </div>
+
+  <div id="toastWrap" class="position-fixed bottom-0 end-0 p-3"></div>
+</div>
+
+{# ══ 自动匹配 Modal ══ #}
+<div class="modal fade" id="autoMatchModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-wand me-2"></i>自动匹配平台用户 → AD 账号</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="autoMatchContent" class="p-4 text-center text-muted">
+          <div class="spinner-border"></div><p class="mt-3">正在拉取平台用户并匹配 AD 账号...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{# ══ 手动绑定 Modal ══ #}
+<div class="modal fade" id="bindModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-link me-2"></i>绑定 AD 账号</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2 small text-muted">平台用户：<span id="bindPlatformUser" class="fw-semibold text-body"></span></div>
+        <label class="form-label fw-semibold">搜索 AD 账号</label>
+        <input type="text" id="bindSearchInput" class="form-control" autocomplete="off"
+               placeholder="输入姓名或账号搜索...">
+        <div id="bindSearchResults" class="list-group mt-2"></div>
+        <input type="hidden" id="bindSelectedSam">
+        <input type="hidden" id="bindSelectedName">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="btnConfirmBind" disabled onclick="confirmBind()">
+          <i class="ti ti-check me-1"></i>确认绑定
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ══ 部门映射 Modal ══ #}
+<div class="modal fade" id="deptMappingModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="ti ti-hierarchy me-2"></i>添加 OU → 部门映射</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="deptMappingPlatform">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">AD OU</label>
+          <select id="deptMappingOu" class="form-select"><option value="">加载中...</option></select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">平台部门</label>
+          <select id="deptMappingDept" class="form-select"><option value="">加载中...</option></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button class="btn btn-primary" id="btnSaveDeptMapping"><i class="ti ti-check me-1"></i>保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var CSRF  = {{ csrf_token|json_encode|raw }};
+var CAN_W = {{ can_write ? 'true' : 'false' }};
+var AJAX  = '/plugins/admanager/ajax/im.php';
+var _matchPlatform = '';
+
+{% verbatim %}
+function api(method, params, body){
+  var url = AJAX + (params ? '?'+new URLSearchParams(params) : '');
+  return fetch(url,{
+    method: method,
+    headers:{'X-Requested-With':'XMLHttpRequest','X-Glpi-Csrf-Token':CSRF,'Content-Type':'application/json'},
+    body: body ? JSON.stringify(body) : undefined
+  }).then(r=>r.json());
+}
+function GET(p){ return api('GET',p); }
+function POST(b){ return api('POST',null,b); }
+
+function toast(ok, msg){
+  var w=document.getElementById('toastWrap');
+  var d=document.createElement('div');
+  d.className='toast align-items-center text-bg-'+(ok?'success':'danger')+' border-0 show';
+  d.innerHTML='<div class="d-flex"><div class="toast-body">'+msg+'</div>'
+    +'<button class="btn-close btn-close-white me-2 m-auto" onclick="this.closest(\'.toast\').remove()"></button></div>';
+  w.appendChild(d); setTimeout(()=>d.remove(),4000);
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function pLabel(p){ return {wecom:'企业微信',dingtalk:'钉钉',feishu:'飞书'}[p]||p; }
+function pIcon(p){
+  return {wecom:'<i class="ti ti-brand-wechat text-success"></i>',
+          dingtalk:'<i class="ti ti-brand-dingtalk text-primary"></i>',
+          feishu:'<i class="ti ti-message-dots text-info"></i>'}[p]||'';
+}
+
+/* ── 加载平台用户 ─────────────────────────────────── */
+window.loadPlatformUsers = function(platform){
+  var el = document.getElementById('platform-users-'+platform);
+  el.innerHTML='<div class="text-center py-5"><span class="spinner-border spinner-border-sm"></span><p class="small mt-2">加载中...</p></div>';
+  GET({action:'get_platform_users', platform:platform}).then(d=>{
+    if(!d.ok){ el.innerHTML='<div class="text-danger p-3 small">'+esc(d.message)+'</div>'; return; }
+    var users = d.data||[];
+    if(!users.length){ el.innerHTML='<div class="text-muted text-center py-4 small">该平台暂无用户</div>'; return; }
+    var html='<table class="table table-sm table-hover mb-0"><thead class="table-light sticky-top"><tr>'
+      +'<th>姓名</th><th>账号/ID</th><th>手机</th><th>状态</th><th>AD绑定</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
+    users.forEach(u=>{
+      var status = u.enabled
+        ? '<span class="badge bg-success-subtle text-success">正常</span>'
+        : '<span class="badge bg-danger-subtle text-danger">禁用</span>';
+      var bound = u.bound_sam
+        ? '<span class="badge bg-primary-subtle text-primary">'+esc(u.bound_sam)+'</span>'
+        : '<span class="text-muted small">未绑定</span>';
+      var action = CAN_W && !u.bound_sam
+        ? '<button class="btn btn-xs btn-outline-secondary py-0 px-1" onclick="manualBind(\''+platform+'\',\''+esc(u.userid)+'\',\''+esc(u.name)+'\')" title="手动绑定AD账号"><i class="ti ti-link"></i></button>'
+        : '';
+      html+='<tr><td>'+esc(u.name||'')+'</td><td class="small text-muted">'+esc(u.userid)+'</td>'
+        +'<td class="small">'+esc(u.mobile||'')+'</td><td>'+status+'</td><td>'+bound+'</td>'+(CAN_W?'<td>'+action+'</td>':'')+'</tr>';
+    });
+    html+='</tbody></table>';
+    el.innerHTML=html;
+  });
+};
+
+/* ── 加载部门映射 ─────────────────────────────────── */
+function loadDeptMappings(platform){
+  var el = document.getElementById('dept-mappings-'+platform);
+  GET({action:'get_dept_mappings', platform:platform}).then(d=>{
+    if(!d.ok){ el.innerHTML='<div class="text-danger p-2 small">'+esc(d.message)+'</div>'; return; }
+    var rows = d.data||[];
+    if(!rows.length){ el.innerHTML='<div class="text-muted text-center py-3 small">暂无映射，请添加</div>'; return; }
+    var html='<table class="table table-sm mb-0"><thead class="table-light"><tr><th>AD OU</th><th>平台部门</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
+    rows.forEach(r=>{
+      var ou = r.ou_dn.split(',')[0] || r.ou_dn;
+      html+='<tr><td class="small text-truncate" style="max-width:160px" title="'+esc(r.ou_dn)+'">'+esc(ou)+'</td>'
+        +'<td class="small">'+esc(r.dept_name||r.dept_id)+'</td>'
+        +(CAN_W?'<td><button class="btn btn-xs btn-outline-danger py-0 px-1" onclick="removeDeptMapping('+r.id+',\''+platform+'\')"><i class="ti ti-x"></i></button></td>':'')
+        +'</tr>';
+    });
+    html+='</tbody></table>';
+    el.innerHTML=html;
+  });
+}
+
+/* ── 加载绑定记录 ─────────────────────────────────── */
+function loadBindings(platform){
+  var el = document.getElementById('bindings-'+platform);
+  GET({action:'get_bindings', platform:platform}).then(d=>{
+    if(!d.ok){ el.innerHTML='<div class="text-danger p-2 small">'+esc(d.message)+'</div>'; return; }
+    var rows = d.data||[];
+    if(!rows.length){ el.innerHTML='<div class="text-muted text-center py-3 small">暂无绑定记录</div>'; return; }
+    var html='<table class="table table-sm mb-0"><thead class="table-light"><tr><th>AD账号</th><th>平台用户</th><th>状态</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
+    rows.forEach(r=>{
+      var status = r.status==='active'
+        ? '<span class="badge bg-success-subtle text-success">正常</span>'
+        : '<span class="badge bg-danger-subtle text-danger">已禁用</span>';
+      var actions = CAN_W ? '<td>'
+        +'<button class="btn btn-xs btn-outline-danger py-0 px-1 me-1" onclick="removeBinding(\''+esc(r.sam)+'\',\''+platform+'\')" title="解除绑定"><i class="ti ti-unlink"></i></button>'
+        +(r.status==='active'
+          ? '<button class="btn btn-xs btn-outline-warning py-0 px-1" onclick="syncStatus(\''+esc(r.sam)+'\',false,\''+platform+'\')" title="同步禁用到平台"><i class="ti ti-user-off"></i></button>'
+          : '<button class="btn btn-xs btn-outline-success py-0 px-1" onclick="syncStatus(\''+esc(r.sam)+'\',true,\''+platform+'\')" title="同步启用到平台"><i class="ti ti-user-check"></i></button>')
+        +'</td>' : '';
+      html+='<tr><td class="fw-semibold small">'+esc(r.sam)+'</td>'
+        +'<td class="small text-muted">'+esc(r.platform_name||r.platform_uid)+'</td>'
+        +'<td>'+status+'</td>'+actions+'</tr>';
+    });
+    html+='</tbody></table>';
+    el.innerHTML=html;
+  });
+}
+
+/* ── 自动匹配 ─────────────────────────────────────── */
+window.openAutoMatch = function(platform){
+  _matchPlatform = platform;
+  document.getElementById('autoMatchContent').innerHTML =
+    '<div class="text-center py-4"><span class="spinner-border"></span><p class="mt-3 small">正在拉取 '+pLabel(platform)+' 用户并匹配 AD 账号...</p></div>';
+  new bootstrap.Modal(document.getElementById('autoMatchModal')).show();
+  GET({action:'auto_match', platform:platform}).then(d=>{
+    if(!d.ok){
+      document.getElementById('autoMatchContent').innerHTML = '<div class="text-danger p-4">'+esc(d.message)+'</div>';
+      return;
+    }
+    var matches = d.data||[];
+    if(!matches.length){
+      document.getElementById('autoMatchContent').innerHTML = '<div class="text-muted text-center py-5 small">所有平台用户均已绑定或无匹配结果</div>';
+      return;
+    }
+    var html='<table class="table table-sm table-hover mb-0"><thead class="table-light sticky-top"><tr>'
+      +'<th>平台用户</th><th>手机/邮箱</th><th>推荐 AD 账号</th><th>匹配方式</th><th>置信度</th><th></th></tr></thead><tbody>';
+    matches.forEach((m,idx)=>{
+      var pu = m.platform_user;
+      var best = m.candidates[0];
+      var scoreClass = m.best_score>=85?'text-success fw-bold':m.best_score>=70?'text-warning':'text-danger';
+      var candidateOpts = m.candidates.map(c=>
+        '<option value="'+esc(c.sam)+'|'+esc(c.dn)+'">'+esc(c.display)+' ('+esc(c.sam)+') '+c.score+'分</option>'
+      ).join('');
+      html+='<tr>'
+        +'<td><div class="fw-semibold">'+esc(pu.name)+'</div><div class="small text-muted">'+esc(pu.userid)+'</div></td>'
+        +'<td class="small">'+esc(pu.mobile||'')+'<br>'+esc(pu.email||'')+'</td>'
+        +'<td>'+(m.candidates.length>0
+          ? '<select class="form-select form-select-sm match-select" data-idx="'+idx+'" style="min-width:160px">'
+            +candidateOpts+'</select>'
+          : '<span class="text-muted small">无匹配</span>')
+        +'</td>'
+        +'<td class="small">'+(best?esc(best.match_by):'')+'</td>'
+        +'<td class="'+scoreClass+' small">'+(m.best_score||'-')+(m.best_score?'%':'')+'</td>'
+        +'<td>'+(m.candidates.length>0&&CAN_W
+          ? '<button class="btn btn-sm btn-success py-0 confirm-match-btn" data-idx="'+idx+'" '
+            +'data-userid="'+esc(pu.userid)+'" data-name="'+esc(pu.name)+'">'
+            +'<i class="ti ti-check me-1"></i>确认</button>'
+          : '')+'</td></tr>';
+    });
+    html+='</tbody></table>';
+    var wrap = document.getElementById('autoMatchContent');
+    wrap.innerHTML = html;
+    wrap.dataset.matches = JSON.stringify(matches);
+
+    wrap.querySelectorAll('.confirm-match-btn').forEach(btn=>{
+      btn.addEventListener('click',function(){
+        var idx  = parseInt(this.dataset.idx);
+        var sel  = wrap.querySelector('.match-select[data-idx="'+idx+'"]');
+        var val  = sel ? sel.value : '';
+        if(!val) return;
+        var [sam, dn] = val.split('|');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        POST({action:'confirm_match', platform:_matchPlatform,
+              sam:sam, platform_uid:this.dataset.userid, platform_name:this.dataset.name})
+          .then(d=>{
+            toast(d.ok, d.message);
+            if(d.ok){
+              btn.closest('tr').classList.add('table-success');
+              btn.outerHTML='<span class="badge bg-success">已绑定</span>';
+              loadBindings(_matchPlatform);
+            } else {
+              btn.disabled=false;
+              btn.innerHTML='<i class="ti ti-check me-1"></i>确认';
+            }
+          });
+      });
+    });
+  });
+};
+
+/* ── 部门映射 Modal ───────────────────────────────── */
+window.openDeptMapping = function(platform){
+  document.getElementById('deptMappingPlatform').value = platform;
+  var ouSel   = document.getElementById('deptMappingOu');
+  var deptSel = document.getElementById('deptMappingDept');
+  ouSel.innerHTML   = '<option value="">加载中...</option>';
+  deptSel.innerHTML = '<option value="">加载中...</option>';
+  // 加载 OU
+  fetch('/plugins/admanager/ajax/adgroup.php?action=list_ous',{
+    headers:{'X-Requested-With':'XMLHttpRequest','X-Glpi-Csrf-Token':CSRF}
+  }).then(r=>r.json()).then(d=>{
+    ouSel.innerHTML='<option value="">请选择 OU...</option>';
+    (d.data||[]).forEach(o=>{
+      var dn=o.distinguishedname||o.dn||'';
+      ouSel.innerHTML+='<option value="'+esc(dn)+'">'+esc(o.ou||dn.split(',')[0])+'</option>';
+    });
+  });
+  // 加载平台部门
+  GET({action:'get_departments', platform:platform}).then(d=>{
+    deptSel.innerHTML='<option value="">请选择平台部门...</option>';
+    (d.data||[]).forEach(dept=>{
+      deptSel.innerHTML+='<option value="'+esc(dept.id)+'|'+esc(dept.name)+'">'+esc(dept.name)+'</option>';
+    });
+  });
+  new bootstrap.Modal(document.getElementById('deptMappingModal')).show();
+};
+
+document.getElementById('btnSaveDeptMapping').addEventListener('click',function(){
+  var platform = document.getElementById('deptMappingPlatform').value;
+  var ou_dn    = document.getElementById('deptMappingOu').value;
+  var deptVal  = document.getElementById('deptMappingDept').value;
+  if(!ou_dn||!deptVal){ toast(false,'请选择 OU 和平台部门'); return; }
+  var [dept_id,dept_name] = deptVal.split('|');
+  POST({action:'save_dept_mapping', platform:platform, ou_dn:ou_dn, dept_id:dept_id, dept_name:dept_name})
+    .then(d=>{
+      toast(d.ok,d.message);
+      if(d.ok){
+        bootstrap.Modal.getInstance(document.getElementById('deptMappingModal')).hide();
+        loadDeptMappings(platform);
+      }
+    });
+});
+
+window.removeDeptMapping = function(id, platform){
+  // 直接通过 id 标记无效（本示例简单处理）
+  if(!confirm('确认删除此部门映射？')) return;
+  // TODO: 加 delete_dept_mapping action
+  toast(false, '请在数据库直接删除 id='+id+' 的记录（待实现删除接口）');
+};
+
+/* ── 手动绑定 AD 账号（弹窗搜索） ──────────────────────── */
+window._bindPlatform  = '';
+window._bindUid       = '';
+window._bindUname     = '';
+
+window.manualBind = function(platform, platform_uid, platform_name){
+  if(!CAN_W) return toast(false, '无权限');
+  _bindPlatform = platform;
+  _bindUid      = platform_uid;
+  _bindUname    = platform_name;
+  document.getElementById('bindPlatformUser').textContent = platform_name + ' (' + platform_uid + ')';
+  document.getElementById('bindSearchInput').value = '';
+  document.getElementById('bindSearchResults').innerHTML = '';
+  document.getElementById('bindSearchResults').style.display = 'none';
+  document.getElementById('bindSelectedSam').value  = '';
+  document.getElementById('bindSelectedName').value = '';
+  document.getElementById('btnConfirmBind').disabled = true;
+  new bootstrap.Modal(document.getElementById('bindModal')).show();
+};
+
+var _bindSearchTimer = null;
+document.getElementById('bindSearchInput').addEventListener('input', function(){
+  var q = this.value.trim();
+  clearTimeout(_bindSearchTimer);
+  var results = document.getElementById('bindSearchResults');
+  if(q.length < 1){ results.style.display='none'; return; }
+  _bindSearchTimer = setTimeout(function(){
+    GET({action:'search_ad_users', q:q, platform:_bindPlatform}).then(d=>{
+      if(!d.ok || !d.data || !d.data.length){
+        results.innerHTML = '<div class="list-group-item text-muted small">未找到匹配的 AD 账号</div>';
+        results.style.display = 'block';
+        return;
+      }
+      var html = '';
+      d.data.forEach(function(u){
+        if(u.already_bound){
+          html += '<div class="list-group-item disabled small text-muted">'
+                + '<span class="fw-semibold">'+esc(u.name)+'</span> '
+                + '<code>'+esc(u.sam)+'</code> '
+                + '<span class="badge bg-secondary ms-1">已绑定</span>'
+                + '<div class="small text-muted">'+esc(u.ou)+'</div></div>';
+        } else {
+          html += '<a href="#" class="list-group-item list-group-item-action" onclick="selectBindUser(\''+esc(u.sam)+'\',\''+esc(u.name)+'\');return false">'
+                + '<span class="fw-semibold">'+esc(u.name)+'</span> '
+                + '<code class="small">'+esc(u.sam)+'</code>'
+                + '<div class="small text-muted">'+esc(u.ou)+'</div></a>';
+        }
+      });
+      results.innerHTML = html;
+      results.style.display = 'block';
+    });
+  }, 300);
+});
+
+window.selectBindUser = function(sam, name){
+  document.getElementById('bindSelectedSam').value = sam;
+  document.getElementById('bindSelectedName').value = name;
+  document.getElementById('bindSearchResults').style.display = 'none';
+  document.getElementById('bindSearchInput').value = name + ' (' + sam + ')';
+  document.getElementById('btnConfirmBind').disabled = false;
+};
+
+window.confirmBind = function(){
+  var sam   = document.getElementById('bindSelectedSam').value;
+  var name  = document.getElementById('bindSelectedName').value;
+  if(!sam || !_bindPlatform || !_bindUid) return;
+  var btn = document.getElementById('btnConfirmBind');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  POST({action:'save_binding', sam:sam, platform:_bindPlatform, platform_uid:_bindUid, platform_name:_bindUname, status:'active'})
+    .then(d=>{
+      toast(d.ok, d.message);
+      bootstrap.Modal.getInstance(document.getElementById('bindModal')).hide();
+      if(d.ok){
+        loadPlatformUsers(_bindPlatform);
+        loadBindings(_bindPlatform);
+      }
+    });
+};
+
+/* ── 解除绑定 ─────────────────────────────────────── */
+window.removeBinding = function(sam, platform){
+  if(!confirm('确认解除 '+sam+' 在 '+pLabel(platform)+' 的绑定？')) return;
+  POST({action:'remove_binding', sam:sam, platform:platform}).then(d=>{
+    toast(d.ok,d.message);
+    if(d.ok) loadBindings(platform);
+  });
+};
+
+/* ── AD→平台状态同步 ─────────────────────────────── */
+window.syncStatus = function(sam, enabled, platform){
+  var action = enabled ? '启用' : '禁用';
+  if(!confirm('确认将 '+sam+' 在 '+pLabel(platform)+' 的账号'+action+'？')) return;
+  POST({action:'sync_ad_to_platform', sam:sam, enabled:enabled}).then(d=>{
+    toast(d.ok, d.ok ? '同步'+action+'成功' : d.message);
+    if(d.ok) loadBindings(platform);
+  });
+};
+
+/* ── 平台→AD 全量状态同步 ────────────────────────── */
+document.getElementById('btnSyncStatus').addEventListener('click',function(){
+  if(!confirm('将拉取所有平台用户状态，对「平台侧已禁用但AD未禁用」的账号执行AD禁用操作。确认继续？')) return;
+  this.disabled=true;
+  this.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>同步中...';
+  var btn = this;
+  GET({action:'sync_status'}).then(d=>{
+    toast(d.ok, d.message || (d.ok?'同步完成':'同步失败'));
+    if(d.ok && d.data && d.data.length){
+      alert('同步结果：\n'+d.data.join('\n'));
+    }
+    btn.disabled=false;
+    btn.innerHTML='<i class="ti ti-refresh me-1"></i>状态同步';
+  });
+});
+
+/* ── Tab 切换时自动加载数据 ─────────────────────── */
+document.querySelectorAll('#platformTabs button[data-platform]').forEach(btn=>{
+  btn.addEventListener('shown.bs.tab',function(){
+    var p = this.dataset.platform;
+    if(document.getElementById('platform-users-'+p)) {
+      loadDeptMappings(p);
+      loadBindings(p);
+    }
+  });
+});
+
+/* ── 初始化：加载第一个已启用平台的数据 ─────────── */
+(function(){
+  var first = document.querySelector('#platformTabs button[data-platform].active');
+  if(first){
+    var p = first.dataset.platform;
+    if(document.getElementById('dept-mappings-'+p)){
+      loadDeptMappings(p);
+      loadBindings(p);
+    }
+  }
+})();
+
+{% endverbatim %}
+})();
+</script>

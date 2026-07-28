@@ -1,0 +1,429 @@
+/* ============================================
+   admanager 插件 — 统一样式 v5.1
+   （布局框架已迁移到 css/admanager-layout.css）
+   ============================================ */
+
+/* ============================================
+   admanager 配色系统 v6.0 (60/30/10 法则)
+   ============================================ */
+:root {
+    /* ── 浅色主题：中性灰 + 绿色强调 ── */
+    --adm-bg:          #f5f5f3;   /* 60% 主背景 */
+    --adm-surface:     #ffffff;   /* 卡片/容器背景 */
+    --adm-border:      #d1d0c8;   /* 边框 */
+    --adm-text:        #3d3d3a;   /* 30% 主文字 */
+    --adm-text-muted:  #787872;   /* 辅助文字 */
+    --adm-accent:      #1D9E75;   /* 10% 强调色（按钮/链接） */
+    --adm-accent-hover:#178a64;   /* 强调色 hover */
+    --adm-accent-light:#e8f5f0;   /* 强调色浅底 */
+    --adm-danger:      #d9534f;   /* 危险操作 */
+    --adm-warning:     #f0ad4e;   /* 警告 */
+    --adm-info:        #5bc0de;   /* 信息 */
+
+    /* ── 组件语义变量 ── */
+    --adm-active-bg:   var(--adm-accent-light);
+    --adm-active-text: var(--adm-text);
+    --adm-active-border:var(--adm-accent);
+
+    /* ── TomSelect 融合 ── */
+    --adm-ts-bg:       var(--adm-surface);
+    --adm-ts-text:     var(--adm-text);
+    --adm-ts-border:   var(--adm-border);
+    --adm-ts-hover:    var(--adm-accent-light);
+    --adm-ts-active:   var(--adm-accent);
+    --adm-ts-tag-bg:   var(--adm-accent);
+    --adm-ts-tag-text: #ffffff;
+
+    /* ── 8px 间距系统 ── */
+    --adm-space-xs:  4px;    /* 图标与文字间距 */
+    --adm-space-sm:  8px;    /* 组件内部 padding */
+    --adm-space-md:  16px;   /* 卡片内边距 / 段落间距 */
+    --adm-space-lg:  24px;   /* 模块之间分隔 */
+    --adm-space-xl:  40px;   /* 区块之间留白 */
+
+    /* ── 布局偏移量：navbar(56px) + 页面 margin-top(20px)
+          替代 calc(100vh - 76px) 魔法数，集中管理 ── */
+    --adm-chrome-offset: 76px;
+}
+
+/* ── 修复 GLPI Bootstrap .small 冲突 ── */
+#page .small {
+    width: auto !important;
+}
+
+/* ============================================
+   1. 布局工具类
+   ============================================ */
+
+/* ── 表格横向滚动容器（仅保留横向滚动） ── */
+.ad-table-wrap {
+    overflow-x: auto;
+    width: 100%;
+}
+
+/* ============================================
+   2. 骨架屏（已移除：无调用方动态生成该 DOM，仅保留 .ad-loading 文本色）
+   ============================================ */
+
+.ad-loading {
+    color: #6c757d;
+}
+
+/* ============================================
+   3. Toast 通知微调
+   ============================================ */
+#ad_toast_container .toast {
+    margin-bottom: 0.5rem;
+    transition: opacity 0.3s;
+}
+
+/* ============================================
+   4. 通用表单控件优化
+   ============================================ */
+
+/* ── 可搜索下拉框暗色模式兼容 ── */
+.ts-dropdown,
+.ts-dropdown .option,
+.ts-dropdown .optgroup-header,
+.ts-control {
+    background-color: #fff !important;
+    color: #212529 !important;
+}
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active {
+    background-color: #e9ecef !important;
+    color: #212529 !important;
+}
+.ts-dropdown .no-results {
+    color: #6c757d !important;
+}
+
+/* ── TomSelect 搜索下拉框 完整风格修复 ── */
+.ts-wrapper.single {
+    min-width: 320px;
+}
+
+/* ── TomSelect 高度修复（安全版）──
+   根因：单选选中项后 TomSelect 加 .input-hidden，把 .ts-control>input
+   设为 position:absolute，控件高度塌缩成 ~6px。
+   修复两层：
+   1) 模板 JS 端设 hidePlaceholder:false，让输入框常驻（不再 input-hidden）；
+   2) 此处仅做「最小高度」兜底，不改动 display/position/padding，避免破坏交互。 */
+.ts-wrapper.form-select-sm {
+    min-height: 31px;
+}
+.ts-wrapper.form-select-sm .ts-control {
+    min-height: 31px;
+}
+
+/* 通用表单控件最小宽度 */
+.ad-form-control {
+    min-width: 120px;
+}
+
+/* ── 操作按钮组微调 ── */
+.ad-btn-group {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+/* ============================================
+   5. 用户模板管理 — 搭积木字段选择
+   ============================================ */
+.field-item-avail:hover {
+    background: #e7f1ff !important;
+    transform: translateX(2px);
+}
+.field-item-sel:hover {
+    background: #ffe0e0 !important;
+    transform: translateX(-2px);
+}
+#selectedFields > div {
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+/* ============================================
+   6. CSV 导出按钮
+   ============================================ */
+.ad-export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* ============================================
+   7. Bootstrap 补丁 / 表单修复
+   ============================================ */
+
+/* ── 修复创建用户表单下拉框背景色（GLPI主题覆盖） ── */
+#createUserForm .form-select,
+#createUserFormInner .form-select {
+    background-color: #fff !important;
+    color: #212529 !important;
+}
+
+/* ── Bootstrap 5 补丁：btn-xs（Bootstrap 3 遗留尺寸） ── */
+.btn-xs {
+    padding: 0.15rem 0.35rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    border-radius: 0.2rem;
+}
+.btn-group-sm > .btn-xs,
+.btn-group > .btn-xs {
+    padding: 0.15rem 0.35rem;
+    font-size: 0.75rem;
+}
+
+/* ============================================
+   8. 卡片 / 内容区视觉（不涉及布局）
+   ============================================ */
+
+/* ── L1 页面背景 ── */
+.adm-page {
+    padding: 0;
+    background: var(--adm-bg);
+}
+
+/* ── 内容区 ── */
+.adm-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--adm-space-lg);
+}
+
+/* ── 卡片（L2 容器层） ── */
+.adm-page .card {
+    background: var(--adm-surface);
+    border: 1px solid var(--adm-border);
+    box-shadow: none;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+.adm-page .card .card-body {
+    padding: var(--adm-space-md);
+}
+.adm-page .card .card-header {
+    padding: var(--adm-space-sm) var(--adm-space-md);
+    background: var(--adm-bg);
+    border-bottom: 1px solid var(--adm-border);
+    font-weight: 600;
+}
+
+/* ============================================
+   9. 统一表单控件
+   ============================================ */
+.adm-input,
+.adm-select {
+    min-height: 36px;
+}
+.adm-input-mini {
+    min-height: 31px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+.adm-btn {
+    min-width: 80px;
+}
+
+/* ============================================
+   10. 统一表格（基础样式）
+   注意：固定表头已移至 layout.css 的 .adm-fixed-header
+   ============================================ */
+.adm-table {
+    table-layout: auto;
+    width: 100%;
+    margin-bottom: 0;
+}
+.adm-table th {
+    white-space: nowrap;
+    font-weight: 600;
+}
+/* （<col> 列宽规则已移除：所有模板均未使用 <colgroup>，规则永不生效） */
+
+/* ============================================
+   11. TomSelect 主题融合（使用 GLPI CSS 变量）
+   ============================================ */
+.adm-page .ts-wrapper .ts-control {
+    background: var(--tblr-bg-surface, #fff) !important;
+    border-color: var(--tblr-border-color, #ced4da) !important;
+    color: var(--tblr-body-color, #212529) !important;
+}
+.adm-page .ts-dropdown {
+    background: var(--tblr-bg-surface, #fff) !important;
+    border-color: var(--tblr-border-color, #ced4da) !important;
+    color: var(--tblr-body-color, #212529) !important;
+}
+.adm-page .ts-dropdown .option {
+    color: var(--tblr-body-color, #212529) !important;
+}
+.adm-page .ts-dropdown .option:hover,
+.adm-page .ts-dropdown .option.active {
+    background: var(--adm-accent) !important;
+    color: #fff !important;
+}
+.adm-page .ts-dropdown .no-results {
+    color: var(--tblr-secondary, #6c757d) !important;
+}
+.adm-page .ts-wrapper.multi .ts-control [data-value] {
+    background: var(--adm-accent) !important;
+    border-color: var(--adm-accent-hover) !important;
+    color: #fff !important;
+}
+
+/* ============================================
+   12. 分组管理专用 (scoped under .adm-page)
+   ============================================ */
+.adm-page .group-list .list-group-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--adm-space-sm) var(--adm-space-md);
+    border-left: none;
+    border-right: none;
+}
+.adm-page .group-list .list-group-item.active {
+    background: var(--adm-active-bg) !important;
+    color: var(--adm-active-text) !important;
+    border-color: var(--adm-active-border) !important;
+}
+.adm-page .group-list .list-group-item.active .text-muted {
+    color: var(--adm-text-muted) !important;
+}
+
+/* ============================================
+   13. 统计卡片（dashboard 使用模板内联 .dash-stat-card，此处规则已移除避免重复）
+   ============================================ */
+
+/* ============================================
+   14. 成员面板
+   ============================================ */
+.adm-member-panel .adm-member-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--adm-space-sm);
+    margin-bottom: var(--adm-space-md);
+}
+
+/* ============================================
+   15. 60/30/10 配色实际应用 (scoped under .adm-page)
+   ============================================ */
+
+/* ── 按钮：用强调色替代 Bootstrap primary ── */
+.adm-page .btn-primary {
+    background-color: var(--adm-accent) !important;
+    border-color: var(--adm-accent) !important;
+    color: #fff !important;
+}
+.adm-page .btn-primary:hover {
+    background-color: var(--adm-accent-hover) !important;
+    border-color: var(--adm-accent-hover) !important;
+}
+.adm-page .btn-outline-primary {
+    color: var(--adm-accent) !important;
+    border-color: var(--adm-accent) !important;
+}
+.adm-page .btn-outline-primary:hover {
+    background-color: var(--adm-accent) !important;
+    color: #fff !important;
+}
+.adm-page .btn-outline-danger {
+    color: var(--adm-danger) !important;
+    border-color: var(--adm-danger) !important;
+}
+
+/* ── 链接 ── */
+.adm-page a:not(.btn):not(.list-group-item):not(.dropdown-item):not(.nav-link) {
+    color: var(--adm-accent);
+}
+
+/* ── 表单焦点 ── */
+.adm-page .form-control:focus,
+.adm-page .form-select:focus {
+    border-color: var(--adm-accent) !important;
+    box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--adm-accent) 25%, transparent) !important;
+}
+
+/* ── 徽章/标签 ── */
+.adm-page .badge.bg-primary {
+    background-color: var(--adm-accent) !important;
+}
+
+/* ── Bootstrap 强调色覆盖 ── */
+.adm-page .text-primary { color: var(--adm-accent) !important; }
+.adm-page .border-primary { border-color: var(--adm-accent) !important; }
+
+/* ── list-group active ── */
+.adm-page .list-group-item.active {
+    background-color: var(--adm-active-bg) !important;
+    color: var(--adm-active-text) !important;
+    border-color: var(--adm-active-border) !important;
+}
+
+/* ── card header ── */
+.adm-page .card-header {
+    background-color: var(--adm-bg) !important;
+    border-bottom-color: var(--adm-border) !important;
+}
+
+/* ============================================
+   16. 统一绿色强调色（消除 Bootstrap 蓝 / 双绿不一致）
+   ============================================ */
+
+/* ── 成功态文字统一为强调绿 ── */
+.adm-page .text-success { color: var(--adm-accent) !important; }
+
+/* ── 成功按钮（实心 / 描边）统一为强调绿 ── */
+.adm-page .btn-success {
+    background-color: var(--adm-accent) !important;
+    border-color: var(--adm-accent) !important;
+    color: #fff !important;
+}
+.adm-page .btn-success:hover {
+    background-color: var(--adm-accent-hover) !important;
+    border-color: var(--adm-accent-hover) !important;
+}
+.adm-page .btn-outline-success {
+    color: var(--adm-accent) !important;
+    border-color: var(--adm-accent) !important;
+}
+.adm-page .btn-outline-success:hover {
+    background-color: var(--adm-accent) !important;
+    color: #fff !important;
+}
+
+/* ── 成功徽章统一为强调绿 ── */
+.adm-page .badge.bg-success {
+    background-color: var(--adm-accent) !important;
+}
+
+/* ============================================
+   17. Toast 容器统一（#ad_toast_container / #toast_wrap / #toastWrap 三处一致）
+   ============================================ */
+#ad_toast_container,
+#toast_wrap,
+#toastWrap {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1080;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+}
+#ad_toast_container .toast,
+#toast_wrap .toast,
+#toastWrap .toast {
+    margin-bottom: 0;
+    pointer-events: auto;
+    transition: opacity 0.3s;
+}
+
+/* ============================================
+   18. 部署页两栏栅格（替换模板内联 flex）
+   ============================================ */
+.adm-content.flex-col-58 { flex: 1 1 58%; min-width: 380px; }
+.adm-content.flex-col-38 { flex: 1 1 38%; min-width: 320px; }

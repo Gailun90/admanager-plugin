@@ -1,0 +1,128 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3" id="log-subtabs">
+    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/agentlog.php"><i class="ti ti-scroll-text me-1"></i>对话日志</a></li>
+    <li class="nav-item"><a class="nav-link active" href="/plugins/admanager/front/auditlog.php"><i class="ti ti-clipboard-check me-1"></i>操作审计</a></li>
+  </ul>
+
+  {# 筛选栏（全宽搜索布局） #}
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <form method="get" class="d-flex align-items-end flex-nowrap gap-2">
+        <div class="ad-search-input">
+          <label class="form-label small fw-bold">操作类型</label>
+          <select name="action_type" class="form-select">
+            <option value="">— 全部 —</option>
+            {% for k,v in action_labels %}
+              <option value="{{ k }}" {{ filters.action_type == k ? 'selected' : '' }}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ad-search-input">
+          <label class="form-label small fw-bold">开始日期</label>
+          <input type="date" name="date_from" class="form-control form-control-sm"
+                 value="{{ filters.date_from }}">
+        </div>
+        <div class="ad-search-input">
+          <label class="form-label small fw-bold">结束日期</label>
+          <input type="date" name="date_to" class="form-control form-control-sm"
+                 value="{{ filters.date_to }}">
+        </div>
+        <div class="ad-search-btn d-flex gap-1">
+          <button type="submit" class="btn btn-sm btn-primary">
+            <i class="ti ti-search me-1"></i>筛选
+          </button>
+          <a href="?" class="btn btn-sm btn-outline-secondary">重置</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# 日志表格 #}
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="ti ti-list-search me-1"></i>审计日志（共 {{ total }} 条）</h5>
+      <div class="d-flex gap-2">
+        <a href="?{{ export_params }}" class="btn btn-sm btn-outline-success ad-export-btn" id="exportCsvBtn">
+          <i class="ti ti-file-download me-1"></i>导出 CSV
+        </a>
+      </div>
+    </div>
+    {% if logs is empty %}
+      <div class="card-body text-muted text-center py-4">暂无日志记录</div>
+    {% else %}
+    <div class="table-responsive">
+    <table class="table adm-table table-hover table-sm mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>时间</th><th>操作人</th><th>操作类型</th>
+            <th>目标类型</th><th>目标名称</th><th>结果</th><th>详情</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="small text-muted text-nowrap">{{ log.date_mod }}</td>
+            <td class="small">
+              {% if log.users_id > 0 %}
+                <span class="badge bg-secondary">{{ log.user_name }}</span>
+              {% else %}
+                <span class="text-muted">系统</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-primary">
+                {{ action_labels[log.action_type] ?? log.action_type }}
+              </span>
+            </td>
+            <td class="small">{{ log.target_type }}</td>
+            <td class="small">
+              <span title="{{ log.target_dn }}">{{ log.target_name }}</span>
+            </td>
+            <td>
+              {% if log.result %}
+                <span class="badge bg-success">成功</span>
+              {% else %}
+                <span class="badge bg-danger" title="{{ log.error_message }}">失败</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if log.params %}
+                <button class="btn btn-xs btn-outline-secondary"
+                        data-bs-toggle="tooltip"
+                        title="{{ log.params|json_encode }}">
+                  <i class="ti ti-info-circle"></i>
+                </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    {% if pages > 1 %}
+    <div class="card-footer">
+      <nav>
+        <ul class="pagination pagination-sm mb-0 justify-content-center">
+          {% if page > 1 %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page - 1 }}&action_type={{ filters.action_type|e('url') }}&date_from={{ filters.date_from|e('url') }}&date_to={{ filters.date_to|e('url') }}">上一页</a>
+            </li>
+          {% endif %}
+          {% for p in 1..pages %}
+            <li class="page-item {{ p == page ? 'active' : '' }}">
+              <a class="page-link" href="?page={{ p }}&action_type={{ filters.action_type|e('url') }}&date_from={{ filters.date_from|e('url') }}&date_to={{ filters.date_to|e('url') }}">{{ p }}</a>
+            </li>
+          {% endfor %}
+          {% if page < pages %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page + 1 }}&action_type={{ filters.action_type|e('url') }}&date_from={{ filters.date_from|e('url') }}&date_to={{ filters.date_to|e('url') }}">下一页</a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>

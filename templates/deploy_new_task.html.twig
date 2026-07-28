@@ -1,0 +1,206 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/deploy_new_task.php">
+        <i class="ti ti-send me-1"></i>新建部署任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy.php">
+        <i class="ti ti-list-check me-1"></i>部署任务列表
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_package.php">
+        <i class="ti ti-package me-1"></i>安装包库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_config.php">
+        <i class="ti ti-settings-cog me-1"></i>部署配置
+      </a>
+    </li>
+  </ul>
+
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+
+  <div class="adm-content mx-auto" style="max-width:960px">
+    {% if can_write %}
+    <div class="card shadow-sm">
+      <div class="card-header py-3"><h6 class="mb-0"><i class="ti ti-send me-1"></i>新建部署任务</h6></div>
+      <div class="card-body py-3">
+        {% if packages is empty %}
+          <div class="alert alert-warning py-2 px-3 small mb-2">
+            暂无可用安装包，请先去
+            <a href="/plugins/admanager/front/deploy_package.php">安装包库</a>
+            上传
+          </div>
+        {% endif %}
+        <form method="post" id="createTaskForm">
+          <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="_action" value="create_task">
+          <div class="mb-2">
+            <label class="form-label small fw-bold">任务名称 *</label>
+            <input type="text" name="task_name" id="task_name" class="form-control form-control-sm" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">安装包 *</label>
+            <select name="package_id" class="form-select form-select-sm" required>
+              <option value="">— 选择安装包 —</option>
+              {% for pkg in packages %}
+                <option value="{{ pkg.id }}">{{ pkg.name }} {{ pkg.version }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small fw-bold">推送目标</label>
+            <select name="target_type" class="form-select form-select-sm" id="targetType">
+              <option value="all">全部终端</option>
+              <option value="group"> 按分组</option>
+              <option value="client"> 指定终端</option>
+            </select>
+          </div>
+
+          {# 分组选择 #}
+          <div class="mb-2 d-none" id="groupSelect">
+            <label class="form-label small fw-bold">选择分组</label>
+            {% if groups is empty %}
+              <div class="alert alert-warning py-1 px-2 small mb-1">
+                暂无分组，请先在
+                <a href="/plugins/admanager/front/groups.php" target="_blank">分组管理</a>
+                中创建
+              </div>
+            {% endif %}
+            <select id="groupSelectInput" name="target_id" class="form-select form-select-sm">
+              <option value=""></option>
+              {% for g in groups %}
+                <option value="{{ g.id }}">{{ g.name }}
+                  {% if g.client_count > 0 %}（{{ g.client_count }} 台）{% endif %}
+                  {% if g.description %} · {{ g.description }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          {# 单台终端选择 #}
+          <div class="mb-2 d-none" id="clientSelect">
+            <label class="form-label small fw-bold">选择终端</label>
+            <select id="clientSelectInput" name="target_id" class="form-select form-select-sm">
+              <option value=""></option>
+              {% for c in clients %}
+                <option value="{{ c.client_id }}"
+                        data-sn="{{ c.serial|slice(0,24) }}">
+                  {{ c.hostname }}｜{{ c.serial|slice(0,20) }}…
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">超时（秒）</label>
+            <input type="number" name="timeout" class="form-control form-control-sm" value="{{ deploy_config.default_timeout|default(600) }}" min="60" max="7200">
+          </div>
+          <div class="mb-3 d-flex gap-3 flex-wrap">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="interactive" value="1"
+                     id="interactive" checked>
+              <label class="form-check-label small" for="interactive">弹窗确认 <span class="text-muted fw-normal">（继承默认值）</span></label>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="need_reboot" value="1" id="need_reboot">
+              <label class="form-check-label small" for="need_reboot">安装后重启</label>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="silent_override" value="1" id="silent_override">
+              <label class="form-check-label small" for="silent_override">静默覆盖</label>
+            </div>
+          </div>
+          {# 交互配置（弹窗确认开启时显示）- 默认值继承自部署设置页面 #}
+          <div id="interactiveConfig" class="border rounded p-2 mb-2">
+            <div class="small text-muted">
+              <i class="ti ti-info-circle me-1"></i>
+              弹窗标题/内容/推迟参数继承自
+              <a href="/plugins/admanager/front/deploy_config.php" target="_blank" class="text-primary fw-bold">
+                部署设置 <i class="ti ti-external-link"></i>
+              </a>
+              ，可在该页面统一修改，任务创建后将自动应用
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="ti ti-player-play me-1"></i>创建并推送
+          </button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+      <div class="alert alert-secondary">您没有创建部署任务的权限。</div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// ── 交互配置显隐 ──
+(function(){
+  var cb = document.getElementById('interactive');
+  var cfg = document.getElementById('interactiveConfig');
+  if (cb && cfg) {
+    var toggle = function(){ cfg.style.display = cb.checked ? '' : 'none'; };
+    toggle();
+    cb.addEventListener('change', toggle);
+  }
+})();
+
+// ── 目标类型切换（含 tom-select 懒加载）──
+(function(){
+  var sel = document.getElementById('targetType');
+  if (!sel) return;
+
+  var tsGroup  = null;
+  var tsClient = null;
+
+  function initTs() {
+    if (!window.TomSelect) return;
+    if (!tsGroup && document.getElementById('groupSelectInput')) {
+      tsGroup = new TomSelect('#groupSelectInput', {
+        placeholder: '搜索分组名称…', allowEmptyOption: true,
+        maxOptions: 200, searchField: ['text'],
+        // 选中项后不隐藏输入框，避免 .input-hidden 把控件压成 6px
+        hidePlaceholder: false,
+      });
+    }
+    if (!tsClient && document.getElementById('clientSelectInput')) {
+      tsClient = new TomSelect('#clientSelectInput', {
+        placeholder: '搜索主机名或序列号…', allowEmptyOption: true,
+        maxOptions: 500, searchField: ['text','value'],
+        hidePlaceholder: false,
+      });
+    }
+  }
+
+  function toggle(val) {
+    var gDiv   = document.getElementById('groupSelect');
+    var cDiv   = document.getElementById('clientSelect');
+    var gInput = document.getElementById('groupSelectInput');
+    var cInput = document.getElementById('clientSelectInput');
+    if (gDiv) gDiv.classList.toggle('d-none', val !== 'group');
+    if (cDiv) cDiv.classList.toggle('d-none', val !== 'client');
+    if (gInput) gInput.disabled = (val !== 'group');
+    if (cInput) cInput.disabled = (val !== 'client');
+    if (val !== 'group'  && tsGroup)  tsGroup.clear();
+    if (val !== 'client' && tsClient) tsClient.clear();
+    if (val === 'group' || val === 'client') {
+      if (!window.TomSelect) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js';
+        s.onload = function(){ initTs(); };
+        document.head.appendChild(s);
+      } else {
+        initTs();
+      }
+    }
+  }
+
+  sel.addEventListener('change', function(){ toggle(this.value); });
+  toggle(sel.value);
+})();
+</script>

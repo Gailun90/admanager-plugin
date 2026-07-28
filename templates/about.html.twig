@@ -1,0 +1,108 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/config.form.php">
+        <i class="ti ti-plug me-1"></i>连接配置
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/about.php">
+        <i class="ti ti-info-circle me-1"></i>关于
+      </a>
+    </li>
+  </ul>
+
+  <div class="row mt-3">
+    <div class="col-12 col-lg-8">
+      <div class="card">
+        <div class="card-header"><h4 class="mb-0"><i class="ti ti-info-circle me-2"></i>关于 B站谈起哥运维插件</h4></div>
+        <div class="card-body">
+          <h5>版本信息</h5>
+          <div class="ad-table-wrap">
+<table class="table adm-table table-sm table-borderless">
+            <tr><td class="text-muted">插件版本</td><td><strong>v1.0.0</strong></td></tr>
+            <tr><td class="text-muted">GLPI 版本</td><td>10.0.x</td></tr>
+            <tr><td class="text-muted">PHP 要求</td><td>&ge; 8.4（需 ldap / curl / mbstring / json / sodium）</td></tr>
+            <tr><td class="text-muted">数据库</td><td>MySQL / MariaDB + PostgreSQL（FastAPI后端）</td></tr>
+            <tr><td class="text-muted">Agent 客户端</td><td>.NET Framework 4.8 WPF（ITAsset4 v1.0.0）</td></tr>
+            <tr><td class="text-muted">作者</td><td>九哥和大力（B站：<a href="https://space.bilibili.com/3493122084440165" target="_blank" rel="noopener">谈起哥</a>）</td></tr>
+          </table>
+</div>
+
+          <h5 class="mt-4">功能清单</h5>
+          <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+            {% set features = [
+              {'icon':'ti ti-dashboard',    'title':'总览看板',   'desc':'AD用户/计算机/终端统计、在线检测、同步状态、本周审计摘要'},
+              {'icon':'ti ti-users',        'title':'AD用户管理', 'desc':'搜索/启用禁用/解锁/重置密码/新建/批量CSV导入/导入GLPI/移动OU'},
+              {'icon':'ti ti-file-import',  'title':'终端导入',   'desc':'FastAPI终端同步到GLPI、软件清单导入、差异检测、自动同步'},
+              {'icon':'ti ti-search',       'title':'计算机查询', 'desc':'三源搜索（AD+FastAPI+GLPI）、系统/CPU/内存详情、在线状态'},
+              {'icon':'ti ti-key',          'title':'BitLocker密钥','desc':'AD恢复密钥查询、格式化展示、一键复制、审计追踪'},
+              {'icon':'ti ti-send',         'title':'软件部署',   'desc':'安装包上传管理、推送任务、状态追踪、交互确认、卸载、推迟'},
+              {'icon':'ti ti-clipboard-list','title':'审计日志',  'desc':'全量操作审计、按类型/操作人筛选、分页、详情查看'},
+              {'icon':'ti ti-folders',      'title':'终端分组',   'desc':'分组管理、成员分配、搜索多选、批量操作、部署目标选择'},
+              {'icon':'ti ti-template',     'title':'用户模板',   'desc':'AD用户创建模板、字段预设、一键应用、模板复用'},
+              {'icon':'ti ti-device-desktop',      'title':'远程桌面',   'desc':'WebSocket实时远程控制、session token安全认证、binary JPEG传输'},
+              {'icon':'ti ti-shield-check', 'title':'安全认证',   'desc':'HMAC签名防重放、sodium加密存储、一次性session token、操作审计'},
+              {'icon':'ti ti-settings',     'title':'连接配置',   'desc':'AD LDAP(S)+证书、FastAPI地址Token、差异告警天数、缓存同步'},
+            ] %}
+            {% for f in features %}
+            <div class="col">
+              <div class="d-flex align-items-start">
+                <i class="{{ f.icon }} fs-5 text-primary flex-shrink-0 me-2"></i>
+                <div>
+                  <div class="fw-bold small">{{ f.title }}</div>
+                  <div class="text-muted">{{ f.desc }}</div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <h5 class="mt-4">技术架构</h5>
+          <ul class="small text-muted">
+            <li><strong>前端：</strong>GLPI 10.0 插件标准架构，Bootstrap 5 + Tabler Icons</li>
+            <li><strong>后端：</strong>FastAPI (Python 3.10) + PostgreSQL + SQLAlchemy 异步 ORM，WebSocket 长连接</li>
+            <li><strong>AD 对接：</strong>PHP LDAP 直连域控，支持 LDAPS + 证书认证</li>
+            <li><strong>Agent 客户端：</strong>Windows WPF (.NET Framework 4.8)，系统信息采集、软件安装、远程桌面</li>
+            <li><strong>远程桌面：</strong>WebSocket 实时传输，binary JPEG 帧 + session token 安全认证</li>
+            <li><strong>安全：</strong>sodium 加密敏感字段、HMAC-SHA256 签名防重放、一次性 session token</li>
+            <li><strong>数据流：</strong>Agent → FastAPI (资产上报/任务拉取) ⇄ GLPI (管理界面) ⇄ AD (用户/计算机操作)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card">
+        <div class="card-header"><h5 class="mb-0"><i class="ti ti-heart me-2 text-danger"></i>支持作者</h5></div>
+        <div class="card-body text-center">
+          <p class="text-muted small mb-3">如果觉得好用，欢迎请我喝杯咖啡 ☕</p>
+          <img src="/plugins/admanager/img/wechatQR.jpg" alt="微信赞赏码"
+               class="img-fluid rounded shadow-sm mb-3"
+               onerror="this.style.display='none'">
+
+          <hr>
+
+          <h6 class="mt-3">联系方式</h6>
+          <div class="ad-table-wrap">
+<table class="table adm-table table-sm table-borderless small">
+            <tr>
+              <td class="text-muted"><i class="ti ti-brand-qq me-1"></i>QQ</td>
+              <td><a href="mailto:351119794@qq.com">351119794@qq.com</a></td>
+            </tr>
+            <tr>
+              <td class="text-muted"><i class="ti ti-brand-bilibili me-1"></i>B站</td>
+              <td><a href="https://space.bilibili.com/3493122084440165" target="_blank" rel="noopener">谈起哥</a></td>
+            </tr>
+          </table>
+</div>
+
+          <div class="mt-3 p-3 bg-light rounded text-center small">
+            <i class="ti ti-code me-1"></i>开源协议：GPL v3+
+            <br>欢迎提交 Issue / PR
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,581 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/import.php">
+        <i class="ti ti-file-import me-1"></i>手动导入
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/groups.php">
+        <i class="ti ti-folders me-1"></i>终端分组
+      </a>
+    </li>
+  </ul>
+
+  {% if import_result %}
+    <div class="alert alert-{{ import_result.status in ['created','updated'] ? 'success' : 'danger' }} mt-3 alert-dismissible">
+      {% if import_result.status == 'created' %}
+        <i class="ti ti-circle-check me-1"></i>已新建 GLPI 记录（ID: {{ import_result.glpi_id }}）
+      {% elseif import_result.status == 'updated' %}
+        <i class="ti ti-refresh me-1"></i>已更新 GLPI 记录（ID: {{ import_result.glpi_id }}）
+      {% else %}
+        <i class="ti ti-alert-circle me-1"></i>导入失败：{{ import_result.message }}
+      {% endif %}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endif %}
+  {% if error %}
+    <div class="alert alert-warning mt-2">{{ error }}</div>
+  {% endif %}
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="ti ti-file-import me-1"></i>手动导入终端资产</h5>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <a href="?diff=1" class="btn btn-sm {{ diff_only ? 'btn-danger' : 'btn-outline-danger' }}">
+          <i class="ti ti-alert-triangle me-1"></i>仅差异（{{ diff_list|length }}）
+        </a>
+        <a href="?" class="btn btn-sm {{ not diff_only ? 'btn-primary' : 'btn-outline-primary' }} ms-1">
+          <i class="ti ti-list me-1"></i>全部终端
+        </a>
+        {# ── 需求2：导出 CSV 按钮 ── #}
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="exportTableCsv()" title="导出当前表格为 CSV">
+          <i class="ti ti-table-export me-1"></i>导出 CSV
+        </button>
+        <div class="ad-search-input">
+          <input type="text" id="importSearchInput" class="form-control form-control-sm"
+                 placeholder="搜索主机名/序列号/用户..."
+                 oninput="filterImportRows(this.value)">
+        </div>
+        {# ── 修复“删除终端非常慢”：批量并发删除 + 一键清空全部 ── #}
+        <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger ms-1" disabled
+                title="批量删除所选终端（并发删除，秒级完成）">
+          <i class="ti ti-trash me-1"></i>批量删除所选
+        </button>
+        <button type="button" id="deleteAllBtn" class="btn btn-sm btn-danger ms-1"
+                title="清空全部已注册终端（不可恢复）">
+          <i class="ti ti-eraser me-1"></i>清空全部终端
+        </button>
+      </div>
+    </div>
+    <div class="ad-table-wrap">
+<table class="table adm-table table-hover table-sm mb-0 align-middle" id="importTable">
+        <thead class="table-light">
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="select-all-clients" title="全选/取消全选"></th>
+            {# ── 需求1：新增「真实序列号」列 ── #}
+            <th style="width:130px">设备序列号</th><th>主机名</th><th>当前用户</th><th>操作系统</th><th>CPU</th><th>内存</th>
+            <th>最后上报</th><th>在线</th><th>GLPI状态</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="importTableBody">
+          {% set list = diff_only ? diff_list : clients %}
+          {% for c in list %}
+          <tr class="{{ (c.has_diff ?? false) ? 'table-warning' : '' }}">
+            <td>
+              <input type="checkbox" class="client-checkbox"
+                     data-client-id="{{ c.client_id|default(0) }}"
+                     data-serial="{{ c.serial|default('') }}"
+                     data-bios="{{ c.real_serial|default(c.bios_serial|default('')) }}">
+            </td>
+            {# ── 真实序列号（bios_serial），超出折叠，hover 显示完整值 ── #}
+            <td>
+              {% if c.real_serial is defined and c.real_serial %}
+                <code class="small d-block" style="max-width:130px;word-break:break-all" title="{{ c.real_serial|escape }}">{{ c.real_serial|escape }}</code>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td><strong>{{ c.hostname ?? '—' }}</strong></td>
+            <td>
+              {% set cu = c.current_user_raw|default('') %}
+              {% if cu %}
+                <span class="fw-semibold small">{{ cu }}</span>
+                {% set ims = c.im_bindings|default([]) %}
+                {% if ims is not empty %}
+                  <br><span class="small text-primary">{{ ims|join(', ') }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small">{{ c.os_name ?? '—' }}</td>
+            <td class="small text-muted">{{ c.cpu ?? '—' }}</td>
+            <td class="small">{{ c.memory_gb ? c.memory_gb ~ ' GB' : '—' }}</td>
+            <td class="small text-muted">{{ c.last_seen ? c.last_seen|slice(0,16)|replace({'T':' '}) : '—' }}</td>
+            <td>
+              {% if online_serials is defined and c.serial is defined and attribute(online_serials, c.serial) is defined %}
+                <span class="badge bg-success"><i class="ti ti-wifi me-1"></i>在线</span>
+              {% else %}
+                <span class="badge bg-secondary text-white">离线</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if (c.glpi_items_id ?? 0) > 0 %}
+                <a href="/front/computer.form.php?id={{ c.glpi_items_id }}" target="_blank"
+                   class="badge bg-success text-decoration-none">
+                  <i class="ti ti-check me-1"></i>GLPI #{{ c.glpi_items_id }}
+                </a>
+              {% else %}
+                <span class="badge bg-secondary">未导入</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                {% if c.client_id is defined and c.client_id > 0 %}
+                <button class="btn btn-xs btn-outline-info sw-btn"
+                        data-client-id="{{ c.client_id|escape }}"
+                        data-hostname="{{ c.hostname|escape }}"
+                        title="查看软件清单">
+                  <i class="ti ti-packages"></i>
+                </button>
+                {% endif %}
+                {% if c.client_id is defined and c.client_id > 0 %}
+                {# ── 需求3：修复图标名 ti-desktop → ti-device-desktop ── #}
+                <button class="btn btn-xs btn-outline-success sw-btn-remote"
+                        data-client-id="{{ c.client_id|escape }}"
+                        data-hostname="{{ c.hostname|escape }}"
+                        title="远程桌面">
+                  <i class="ti ti-device-desktop"></i>
+                </button>
+                {% endif %}
+                {% if can_import %}
+                <form method="post">
+                  <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="import_type" value="computer">
+                  <input type="hidden" name="import_serial" value="{{ c.serial|escape }}">
+                  <button type="submit" class="btn btn-xs btn-primary" title="导入到GLPI">
+                    <i class="ti ti-file-import"></i>
+                  </button>
+                </form>
+                {# ── 删除按钮：client_id>0 删除FastAPI客户端，=0 仅清除孤儿syncstate ── #}
+                {% if c.serial is defined and c.serial %}
+                {% set has_api_client = c.client_id is defined and c.client_id > 0 %}
+                <form method="post"
+                      onsubmit="return confirm(
+                        {% if has_api_client %}'确定要删除终端「{{ c.hostname }}」？\n此操作将从 FastAPI 和同步状态中删除该客户端，无法恢复！'
+                        {% else %}'该终端在 FastAPI 中已不存在，确定清除本地同步记录？'{% endif %})">
+                  <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="action" value="delete_client">
+                  <input type="hidden" name="del_client_id" value="{{ c.client_id|default(0) }}">
+                  <input type="hidden" name="del_hostname" value="{{ c.hostname|escape }}">
+                  <input type="hidden" name="del_serial" value="{{ c.serial|escape }}">
+                  <input type="hidden" name="del_bios" value="{{ c.real_serial|default(c.bios_serial|default(''))|escape }}">
+                  <button type="submit"
+                          class="btn btn-xs {{ has_api_client ? 'btn-outline-danger' : 'btn-outline-secondary' }}"
+                          title="{{ has_api_client ? '删除此客户端' : '清除本地同步记录' }}">
+                    <i class="ti ti-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="10" class="text-center text-muted py-4">
+              {{ error ? '无法获取数据（FastAPI未连接）' : '暂无数据' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+</div>
+  </div>
+</div>
+{# 远程桌面弹窗 #}
+<div class="modal fade" id="remoteModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="remoteModalTitle">远程桌面</h5>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+          <span id="remoteStatus" class="badge bg-secondary">未连接</span>
+          <span id="remoteFps" class="small text-muted me-2"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body p-0 bg-dark position-relative">
+        <canvas id="remoteCanvas"></canvas>
+        <div id="remoteOverlay" class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center text-white">
+          <div class="text-center">
+            <div class="spinner-border mb-3"></div>
+            <p>正在连接远程桌面...</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <small class="text-muted me-auto" id="remoteInfo"></small>
+        <button class="btn btn-outline-secondary btn-sm" id="btnRemoteStop" disabled onclick="stopRemote()">
+          <i class="ti ti-player-stop me-1"></i>断开
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{# 软件清单弹窗 #}
+<div class="modal fade" id="softwareModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="swModalTitle">软件清单</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="swModalBody" class="text-center py-4 text-muted">加载中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+var FASTAPI_SERVER_URL = '{{ (fastapi_server_url is defined and fastapi_server_url) ? fastapi_server_url : FASTAPI_URL }}';
+var FASTAPI_URL = '{{ (fastapi_url is defined and fastapi_url) ? fastapi_url : "http://127.0.0.1:8000" }}';
+// 导入页面表格搜索过滤
+function filterImportRows(val) {
+    val = val.toLowerCase().trim();
+    var rows = document.querySelectorAll('#importTableBody tr');
+    rows.forEach(function(row) {
+        var text = row.textContent || '';
+        row.style.display = (val === '' || text.toLowerCase().indexOf(val) !== -1) ? '' : 'none';
+    });
+}
+// ── 需求2：导出 CSV ──────────────────────────────────────────────────────────
+function exportTableCsv() {
+    var table = document.getElementById('importTable');
+    if (!table) return;
+    var rows = [];
+    // 表头
+    var headers = [];
+    table.querySelectorAll('thead th').forEach(function(th) {
+        headers.push('"' + th.textContent.trim().replace(/"/g, '""') + '"');
+    });
+    rows.push(headers.join(','));
+    // 数据行（只取可见行）
+    table.querySelectorAll('tbody tr').forEach(function(tr) {
+        if (tr.style.display === 'none') return;
+        var cells = [];
+        tr.querySelectorAll('td').forEach(function(td, idx) {
+            // 最后一列（操作）跳过
+            if (idx === tr.querySelectorAll('td').length - 1) return;
+            var text = td.textContent.trim().replace(/\s+/g, ' ').replace(/"/g, '""');
+            cells.push('"' + text + '"');
+        });
+        if (cells.length) rows.push(cells.join(','));
+    });
+    var csvContent = '\uFEFF' + rows.join('\r\n');   // BOM for Excel UTF-8
+    var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var now = new Date();
+    var ts = now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) +
+             '_' + ('0'+now.getHours()).slice(-2) + ('0'+now.getMinutes()).slice(-2);
+    a.download = 'itasset_clients_' + ts + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+document.querySelectorAll('.sw-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var cid      = btn.dataset.clientId;
+    var hostname = btn.dataset.hostname;
+    document.getElementById('swModalTitle').textContent = hostname + ' 软件清单';
+    document.getElementById('swModalBody').innerHTML =
+      '<div class="text-center py-4 text-muted">加载中...</div>';
+    new bootstrap.Modal(document.getElementById('softwareModal')).show();
+    fetch('?action=software&client_id=' + encodeURIComponent(cid))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var sw = data.software || [];
+        if (!sw.length) {
+          document.getElementById('swModalBody').innerHTML =
+            '<div class="text-center py-4 text-muted">暂无软件记录</div>';
+          return;
+        }
+        var html = '<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr>' +
+          '<th>软件名称</th><th>版本</th><th>发行商</th><th>安装日期</th><th style="width:80px">操作</th></tr></thead><tbody>';
+        sw.forEach(function(s) {
+          html += '<tr><td>' + escHtml(s.name) + '</td><td class="small text-muted">' +
+            escHtml(s.version) + '</td><td class="small">' +
+            escHtml(s.publisher) + '</td><td class="small text-muted">' +
+            escHtml(s.install_date) + '</td><td>' +
+            '<form method="post" style="display:inline" onsubmit="return confirm(\'确定要卸载 ' + escHtml(s.name) + ' 吗？\')">' +
+            '<input type="hidden" name="_glpi_csrf_token" value="' + document.querySelector('input[name=_glpi_csrf_token]').value + '">' +
+            '<input type="hidden" name="action" value="uninstall">' +
+            '<input type="hidden" name="software_name" value="' + escHtml(s.name) + '">' +
+            '<input type="hidden" name="client_id" value="' + cid + '">' +
+            '<button type="submit" class="btn btn-xs btn-outline-danger" title="卸载此软件">' +
+            '<i class="ti ti-trash"></i></button></form></td></tr>';
+        });
+        html += '</tbody></table>';
+        if (data.collected_at) {
+          html += '<div class="text-muted text-end small p-2">采集时间：' +
+            escHtml(data.collected_at.substring(0,16).replace('T',' ')) + '</div>';
+        }
+        document.getElementById('swModalBody').innerHTML = html;
+      })
+      .catch(function() {
+        document.getElementById('swModalBody').innerHTML =
+          '<div class="alert alert-danger m-3">加载失败，请稍后重试</div>';
+      });
+  });
+});
+// ═══════════════════════════════════════════════
+// 远程桌面 v4.9 — session token 安全改进 + 二进制 JPEG 帧
+// ═══════════════════════════════════════════════
+var _remoteWs = null;
+var _remoteFrameCount = 0;
+var _remoteStartTime = null;
+var _remoteFrameW = 0;
+var _remoteFrameH = 0;
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// ── overlay helpers (class-based, beats Bootstrap !important) ──
+function _overlayShow(html) {
+  var ov = document.getElementById('remoteOverlay');
+  if (!ov) return;
+  ov.classList.remove('d-none');
+  ov.classList.add('d-flex');
+  if (html !== undefined) ov.innerHTML = html;
+}
+function _overlayHide() {
+  var ov = document.getElementById('remoteOverlay');
+  if (!ov) return;
+  ov.classList.remove('d-flex');
+  ov.classList.add('d-none');
+}
+document.querySelectorAll('.sw-btn-remote').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var cid = this.dataset.clientId;
+    var host = this.dataset.hostname;
+    startRemote(cid, host);
+  });
+});
+function startRemote(clientId, hostname){
+  document.getElementById('remoteModalTitle').textContent = '远程桌面: ' + hostname;
+  document.getElementById('remoteStatus').className = 'badge bg-warning text-dark';
+  document.getElementById('remoteStatus').textContent = '连接中...';
+  document.getElementById('remoteFps').textContent = '';
+  _overlayShow();
+  document.getElementById('btnRemoteStop').disabled = false;
+  var canvas = document.getElementById('remoteCanvas');
+  var ctx = canvas.getContext('2d');
+  _remoteFrameCount = 0;
+  _remoteFrameW = 0;
+  _remoteFrameH = 0;
+  _remoteStartTime = Date.now();
+  new bootstrap.Modal(document.getElementById('remoteModal')).show();
+  var wsUrl = FASTAPI_SERVER_URL.replace(/\/+$/, '').replace(/^http/, 'ws');
+  if(_remoteWs){ _remoteWs.close(); _remoteWs = null; }
+  // ★ 安全改进：先通过 GLPI 后端获取一次性 session token，不暴露全局 API token
+  var remoteSessionUrl = CFG_GLPI.root_doc + '/plugins/admanager/ajax/remote_session.php?client_id=' + clientId;
+  fetch(remoteSessionUrl)
+    .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data){
+      if(data.error){ showRemoteError(data.error); return; }
+      var url = wsUrl.replace(/\/+$/, '') + '/ws/remote/' + clientId + '?token=' + encodeURIComponent(data.session_token);
+      _connectRemoteWs(url);
+    })
+    .catch(function(e){
+      showRemoteError('获取会话令牌失败: ' + e.message);
+    });
+  function showRemoteError(msg){
+    console.error('[Remote] ' + msg);
+    document.getElementById('remoteStatus').className = 'badge bg-danger';
+    document.getElementById('remoteStatus').textContent = '连接失败';
+    _overlayShow('<div class="text-center"><p class="text-danger">' + escHtml(msg) + '</p></div>');
+  }
+  function _connectRemoteWs(url){
+    _remoteWs = new WebSocket(url);
+    _remoteWs.binaryType = 'blob';
+    _remoteWs.onopen = function(){
+      // v4.9: session token 验证通过，等待 Agent 确认
+      console.log('[Remote] WS connected, waiting for viewer_ready...');
+      document.getElementById('remoteStatus').className = 'badge bg-success';
+      document.getElementById('remoteStatus').textContent = '已连接，等待Agent...';
+    };
+    _remoteWs.onmessage = function(e){
+    if (e.data instanceof Blob) {
+      _overlayHide();
+      if (_remoteFrameW <= 0 || _remoteFrameH <= 0) return;
+      _remoteFrameCount++;
+      var url = URL.createObjectURL(e.data);
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.getElementById('remoteCanvas');
+        var ctx = canvas.getContext('2d');
+        canvas.width = _remoteFrameW;
+        canvas.height = _remoteFrameH;
+        bindRemoteMouse(canvas);
+        var container = canvas.parentElement;
+        var cw = container.clientWidth;
+        var scale = Math.min(1, cw / _remoteFrameW);
+        canvas.style.width = (_remoteFrameW * scale) + 'px';
+        canvas.style.height = (_remoteFrameH * scale) + 'px';
+        ctx.drawImage(img, 0, 0, _remoteFrameW, _remoteFrameH);
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+      var elapsed = (Date.now() - _remoteStartTime) / 1000;
+      if(elapsed > 2){
+        var fps = Math.round(_remoteFrameCount / elapsed);
+        document.getElementById('remoteFps').textContent = fps + ' fps';
+        document.getElementById('remoteInfo').textContent =
+          _remoteFrameW + 'x' + _remoteFrameH + ' | binary';
+      }
+      _overlayHide();
+      return;
+    }
+    try {
+      var msg = JSON.parse(e.data);
+      if(msg.type === 'viewer_ready'){
+        // v4.9: Agent 确认 viewer 连接，等待发帧
+        console.log('[Remote] viewer_ready: ' + (msg.serial||'?'));
+        document.getElementById('remoteStatus').textContent = 'Agent 已准备';
+        _overlayShow();
+        _overlayShow();
+        return;
+      }
+      if(msg.type === 'agent_offline'){
+        // v4.9: Agent 断线通知
+        console.warn('[Remote] agent offline: ' + (msg.message||''));
+        document.getElementById('remoteStatus').className = 'badge bg-warning text-dark';
+        document.getElementById('remoteStatus').textContent = 'Agent 离线';
+        _overlayShow();
+        _overlayShow();
+        return;
+      }
+      if(msg.type === 'error'){
+        console.error('[Remote] Server error: ' + msg.message);
+        _overlayShow('<div class="text-center"><p class="text-danger">' + (msg.message || 'Connection error') + '</p></div>');
+        return;
+      }
+      if(msg.type === 'remote_frame_bin'){
+        _remoteFrameW = msg.width || 0;
+        _remoteFrameH = msg.height || 0;
+        return;
+      }
+      if(msg.type === 'remote_frame'){
+        _remoteFrameCount++;
+        _remoteFrameW = msg.width || 0;
+        _remoteFrameH = msg.height || 0;
+        renderFrame(msg.data, msg.width, msg.height);
+        var elapsed = (Date.now() - _remoteStartTime) / 1000;
+        if(elapsed > 2){
+          var fps = Math.round(_remoteFrameCount / elapsed);
+          document.getElementById('remoteFps').textContent = fps + ' fps';
+          document.getElementById('remoteInfo').textContent =
+            msg.width + 'x' + msg.height + ' | ' + Math.round(msg.size/1024) + ' KB';
+        }
+        _overlayHide();
+        return;
+      }
+    } catch(ex){ console.warn('[Remote] msg parse err:', ex); }
+  };
+    _remoteWs.onerror = function(e){
+      console.error('[Remote] WS error');
+      document.getElementById('remoteStatus').className = 'badge bg-danger';
+      document.getElementById('remoteStatus').textContent = '连接失败';
+      _overlayShow();
+      _overlayShow();
+    };
+    _remoteWs.onclose = function(e){
+      console.log('[Remote] WS closed, code='+e.code+', frames='+_remoteFrameCount);
+      document.getElementById('remoteStatus').className = 'badge bg-secondary';
+      document.getElementById('remoteStatus').textContent = '已断开';
+      document.getElementById('btnRemoteStop').disabled = true;
+      document.getElementById('remoteFps').textContent = '';
+    };
+  } // end _connectRemoteWs
+  document.getElementById('remoteModal').addEventListener('hide.bs.modal', function(){
+    if (document.activeElement && document.activeElement.blur)
+      document.activeElement.blur();
+    stopRemote();
+  }, {once: true});
+}
+function renderFrame(base64, width, height){
+  var canvas = document.getElementById('remoteCanvas');
+  var ctx = canvas.getContext('2d');
+  var img = new Image();
+  img.onload = function(){
+    canvas.width = width;
+    canvas.height = height;
+    bindRemoteMouse(canvas);
+    var container = canvas.parentElement;
+    var cw = container.clientWidth;
+    var scale = Math.min(1, cw / width);
+    canvas.style.width = (width * scale) + 'px';
+    canvas.style.height = (height * scale) + 'px';
+    ctx.drawImage(img, 0, 0, width, height);
+  };
+  img.src = 'data:image/jpeg;base64,' + base64;
+}
+function stopRemote(){
+  if (document.activeElement && document.activeElement.blur)
+    document.activeElement.blur();
+  if(_remoteWs && _remoteWs.readyState === WebSocket.OPEN){
+    _remoteWs.send(JSON.stringify({type:'remote_stop'}));
+    _remoteWs.close();
+  }
+  _remoteWs = null;
+  _remoteMouseBound = false;
+}
+var _remoteMouseBound = false;
+function bindRemoteMouse(canvas) {
+  if (_remoteMouseBound) return;
+  _remoteMouseBound = true;
+  function getRelXY(e) {
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = canvas.width  / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var cx = (e.clientX - rect.left)  * scaleX;
+    var cy = (e.clientY - rect.top)   * scaleY;
+    return {
+      x: Math.max(0, Math.min(1, cx / canvas.width)),
+      y: Math.max(0, Math.min(1, cy / canvas.height))
+    };
+  }
+  function sendInput(event_type, button, xy, scroll_delta) {
+    if (!_remoteWs || _remoteWs.readyState !== WebSocket.OPEN) {
+      if (event_type !== 'move')
+        console.warn('[RemoteInput] WS not ready, state='+(_remoteWs ? _remoteWs.readyState : 'null')+', type='+event_type);
+      return;
+    }
+    var payload = {
+      type: 'remote_input',
+      event_type:   event_type,
+      button:       button || 'left',
+      mouse_x:      xy ? xy.x : 0,
+      mouse_y:      xy ? xy.y : 0,
+      scroll_delta: scroll_delta || 0,
+    };
+    if (event_type !== 'move')
+      console.log('[RemoteInput] send ->', JSON.stringify(payload));
+    _remoteWs.send(JSON.stringify(payload));
+  }
+  function btnName(b) { return b === 2 ? 'right' : b === 1 ? 'middle' : 'left'; }
+  canvas.addEventListener('mousemove', function(e) {
+    sendInput('move', 'left', getRelXY(e), 0);
+  });
+  canvas.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    sendInput('down', btnName(e.button), getRelXY(e), 0);
+  });
+  canvas.addEventListener('mouseup', function(e) {
+    e.preventDefault();
+    sendInput('up', btnName(e.button), getRelXY(e), 0);
+  });
+  canvas.addEventListener('click', function(e) {
+    e.preventDefault();
+  });
+  canvas.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+  });
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var delta = e.deltaY < 0 ? 1 : -1;
+    sendInput('scroll', 'left', getRelXY(e), delta);
+  }, { passive: false });
+}
+</script>
+<script src="/plugins/admanager/js/import.js"></script>

@@ -1,0 +1,134 @@
+<div class="adm-page">
+  <input type="hidden" id="vuln-csrf" value="{{ csrf_token }}">
+
+  {# GLPI 左侧菜单不支持二级子菜单，故三个漏洞修复子页用内容区页签互相跳转 #}
+  <ul class="nav nav-tabs mb-3" id="vuln-subtabs">
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/vuln_import.php">
+        <i class="ti ti-file-import me-1"></i>导入记录
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_tasks.php">
+        <i class="ti ti-list-check me-1"></i>待处理任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_rules.php">
+        <i class="ti ti-book me-1"></i>QID规则库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_correct.php">
+        <i class="ti ti-message-chatbot me-1"></i>对话纠正
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/agent.php">
+        <i class="ti ti-robot me-1"></i>AI Agent
+      </a>
+    </li>
+  </ul>
+
+  {# == 上传卡片 == #}
+  <div class="card mb-3">
+    <div class="card-header py-2"><h5 class="mb-0"><i class="ti ti-upload me-1"></i>上传漏洞扫描结果（Qualys xlsx）</h5></div>
+    <div class="card-body">
+      {% if can_write %}
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="_action" value="upload">
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">xlsx 文件 *（列：IP, DNS_Calculation, QID, Title, Results, Solution）</label>
+          <input type="file" name="vuln_file" class="form-control form-control-sm" required accept=".xlsx">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-sm btn-primary w-100"><i class="ti ti-cloud-upload me-1"></i>上传并解析</button>
+        </div>
+        <div class="col-md-4 small text-muted">
+          上传后后台自动解析、匹配资产、生成修复任务。最大 20MB。
+        </div>
+      </form>
+      {% else %}
+      <div class="text-muted small">当前账号无上传权限。</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# == 导入批次列表 == #}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="ti ti-list me-1"></i>导入批次（{{ imports|length }}）</h5>
+      <input type="search" id="import-search" class="form-control form-control-sm w-auto" placeholder="搜索批次 / 文件名…">
+    </div>
+    <div class="card-body p-0">
+      <div class="ad-table-wrap">
+        <table class="table adm-table table-sm table-hover mb-0 align-middle" id="imports-table">
+          <thead>
+            <tr>
+              <th>#</th><th>文件名</th><th>上传人</th><th>上传时间</th>
+              <th>行数</th><th>状态</th><th>进度</th><th>匹配率</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% if imports is empty %}
+            <tr><td colspan="9" class="text-center text-muted py-3">暂无导入记录</td></tr>
+          {% else %}
+            {% for imp in imports %}
+            <tr data-id="{{ imp.id }}" data-status="{{ imp.status }}">
+              <td>{{ imp.id }}</td>
+              <td>{{ imp.filename }}</td>
+              <td>{{ imp.uploaded_by|default('—') }}</td>
+              <td>{{ imp.uploaded_at|default('') }}</td>
+              <td>{{ imp.row_count }}</td>
+              <td class="cell-status">
+                {% set s = imp.status %}
+                <span class="badge {{ s == 'completed' ? 'bg-success' : (s == 'failed' ? 'bg-danger' : 'bg-warning text-dark') }}"
+                      {% if s == 'failed' and imp.error_message %}title="{{ imp.error_message|e('html_attr') }}" style="cursor:help"{% endif %}>
+                  {{ s == 'completed' ? '已完成' : (s == 'failed' ? '失败' : (s == 'parsing' ? '解析中' : '待解析')) }}
+                </span>
+              </td>
+              <td class="cell-progress">{{ imp.processed_count }}/{{ imp.row_count }}</td>
+              <td class="cell-match">—</td>
+              <td class="text-nowrap">
+                <button class="btn btn-xs btn-outline-secondary btn-view" data-id="{{ imp.id }}"
+                        {% if imp.status != 'completed' %}disabled{% endif %}>
+                  <i class="ti ti-eye me-1"></i>查看明细
+                </button>
+                <button class="btn btn-xs btn-outline-warning btn-reparse" data-id="{{ imp.id }}"
+                        {% if imp.status != 'completed' and imp.status != 'failed' %}disabled{% endif %}
+                        title="使用当前 AI 网关/提示配置重新解析（不同模型或提示词可能产生不同结果）">
+                  <i class="ti ti-refresh me-1"></i>重新解析
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# == 明细弹窗 == #}
+  <div class="modal fade" id="findingsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header py-2"><h5 class="modal-title">导入明细（漏洞条目 / 资产匹配）</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="ad-table-wrap">
+            <table class="table table-sm table-hover mb-0 align-middle">
+              <thead><tr><th>QID</th><th>标题</th><th>IP</th><th>DNS</th><th>匹配资产</th><th>匹配度</th></tr></thead>
+              <tbody id="findings-body">
+                <tr><td colspan="6" class="text-center text-muted">加载中…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/plugins/admanager/js/vuln.js"></script>
+</div>

@@ -1,0 +1,119 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/aduser.php">
+        <i class="ti ti-users me-1"></i>AD用户管理
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/computer_query.php">
+        <i class="ti ti-search me-1"></i>计算机查询
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/bitlocker.php">
+        <i class="ti ti-key me-1"></i>BitLocker密钥
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/adgroup.php">
+        <i class="ti ti-shield-lock me-1"></i>AD安全组
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/usertemplate.php">
+        <i class="ti ti-template me-1"></i>用户模板
+      </a>
+    </li>
+  </ul>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="get" class="d-flex align-items-end flex-nowrap gap-2">
+        <div class="ad-search-input">
+          <label class="form-label mb-1 small"><i class="ti ti-lock me-1"></i>输入计算机名查询 BitLocker 恢复密钥</label>
+          <div class="input-group input-group-sm">
+            <input type="text" name="computer" class="form-control" value="{{ computer }}" placeholder="计算机名，如 DESKTOP-xxx..." required>
+            <button type="submit" class="btn btn-warning"><i class="ti ti-search me-1"></i>查询密钥</button>
+          </div>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="alert alert-danger mt-2">{{ error }}</div>
+  {% endif %}
+
+  {% if keys is not empty %}
+  <div class="alert alert-warning mt-2">
+    <i class="ti ti-alert-triangle me-1"></i>
+    <strong>安全提醒：</strong>BitLocker 恢复密钥为敏感信息，请妥善保管，使用后建议通知用户更改 PIN。
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">
+      <h6 class="mb-0"><i class="ti ti-key me-1"></i>{{ computer }} — BitLocker 恢复密钥（{{ keys|length }} 条）</h6>
+    </div>
+    <div class="table-responsive">
+      <div class="ad-table-wrap">
+<table class="table adm-table table-hover table-sm mb-0 align-middle">
+        <thead class="table-light">
+          <tr><th>恢复密钥 ID</th><th>恢复密钥</th><th>卷 GUID</th><th>创建时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          {% for k in keys %}
+          <tr>
+            <td><code class="small">{{ k.recovery_id ?? attribute(k, 'msfve-recoveryguid') ?? k.name ?? '—' }}</code></td>
+            <td>
+              <code class="text-danger fw-bold bitlocker-key" 
+                    onclick="copyKey('{{ k.recovery_key_formatted ?? attribute(k, 'msfve-recoverypassword') }}')"
+                    title="点击复制">
+                {{ k.recovery_key_formatted ?? attribute(k, 'msfve-recoverypassword') }}
+              </code>
+            </td>
+            <td><code class="small">{{ k.volume_guid ?? '—' }}</code></td>
+            <td class="small text-nowrap">{{ k.when_created_fmt ?? k.whencreated ?? '—' }}</td>
+            <td>
+              <button class="btn btn-xs btn-outline-secondary" 
+                      onclick="copyKey('{{ attribute(k, 'msfve-recoverypassword') }}')">
+                <i class="ti ti-copy me-1"></i>复制
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+</div>
+    </div>
+  </div>
+  {% elseif computer is not empty %}
+    <div class="alert alert-info mt-2">
+      <i class="ti ti-info-circle me-1"></i>未找到 {{ computer }} 的 BitLocker 恢复密钥。可能原因：<br>
+      1) 该计算机未启用 BitLocker<br>
+      2) 密钥未备份到 AD（需 GPO 配置）<br>
+      3) 计算机名输入有误
+    </div>
+  {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="ti ti-key fs-1"></i>
+      <p class="mt-2">输入计算机名查询 BitLocker 恢复密钥</p>
+      <small>密钥从 Active Directory 中 msFVE-RecoveryInformation 对象读取</small>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+function copyKey(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        window.showToast ? showToast('密钥已复制到剪贴板', 'success') : alert('已复制');
+    }).catch(function() {
+        var ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        window.showToast ? showToast('密钥已复制到剪贴板', 'success') : alert('已复制');
+    });
+}
+</script>

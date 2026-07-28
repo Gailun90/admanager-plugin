@@ -1,0 +1,224 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_new_task.php">
+        <i class="ti ti-send me-1"></i>新建部署任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy.php">
+        <i class="ti ti-list-check me-1"></i>部署任务列表
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/deploy_package.php">
+        <i class="ti ti-package me-1"></i>安装包库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_config.php">
+        <i class="ti ti-settings-cog me-1"></i>部署配置
+      </a>
+    </li>
+  </ul>
+
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      <h5 class="mb-0"><i class="ti ti-package me-1"></i>安装包库（{{ packages|length }}）</h5>
+      {% if can_write %}
+        <button class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#uploadForm">
+          <i class="ti ti-upload me-1"></i>上传
+        </button>
+      {% endif %}
+    </div>
+
+    {% if can_write %}
+    <div class="collapse" id="uploadForm">
+      <div class="card-body border-bottom bg-white">
+        <form method="post" enctype="multipart/form-data" id="uploadPackageForm">
+          <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="_action" value="upload_package">
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">软件名称 *</label>
+              <input type="text" name="pkg_name" class="form-control form-control-sm" required placeholder="Chrome">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-bold">版本号 *</label>
+              <input type="text" name="pkg_version" class="form-control form-control-sm" required placeholder="124.0">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">静默安装参数</label>
+              <input type="text" name="silent_args" class="form-control form-control-sm" placeholder="/S 或 /qn /norestart">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">描述</label>
+              <input type="text" name="pkg_desc" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="mt-2 d-flex gap-2 align-items-end">
+            <div class="flex-grow-1">
+              <label class="form-label small fw-bold">安装包文件 *（最大 500MB）</label>
+              <input type="file" name="package" class="form-control form-control-sm" required accept=".exe,.msi,.msp,.zip">
+            </div>
+            <button type="submit" id="uploadBtn" class="btn btn-sm btn-success">
+              <i class="ti ti-cloud-upload me-1"></i>开始上传
+            </button>
+          </div>
+          <div id="uploadProgress" class="mt-2 d-none">
+            <div class="progress">
+              <div id="uploadBar" class="progress-bar progress-bar-striped progress-bar-animated"></div>
+            </div>
+            <div class="small text-muted mt-1 text-center">
+              <span id="uploadPercent">0%</span> · <span id="uploadSpeed">—</span>
+            </div>
+          </div>
+          <div id="uploadMsg" class="mt-2 d-none"></div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <div>
+      {% if packages is empty %}
+        <div class="card-body text-center text-muted py-4">
+          <i class="ti ti-package" style="font-size:2rem"></i>
+          <p class="mt-2">暂无安装包，请先上传</p>
+        </div>
+      {% else %}
+        <div class="ad-table-wrap">
+<table class="table adm-table table-sm table-hover mb-0 align-middle">
+  <thead class="table-light">
+    <tr>
+      <th class="text-start ps-3">软件名称</th><th class="ps-3">文件信息</th><th class="ps-3">静默参数</th>
+      {% if can_write %}<th class="text-center" style="width:120px">操作</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for pkg in packages %}
+    <tr class="pkg-item" data-id="{{ pkg.id }}" data-name="{{ pkg.name }}" data-ver="{{ pkg.version }}"
+        data-silent="{{ pkg.silent_args|default(pkg.silent|default('')) }}" data-desc="{{ pkg.description|default('') }}"
+        data-filename="{{ pkg.filename }}" data-size="{{ (pkg.file_size / 1048576)|round(1) }}">
+      <td class="text-start ps-3">
+        <span class="fw-bold small">{{ pkg.name }}</span>
+        <span class="badge bg-secondary ms-1">{{ pkg.version }}</span>
+        {% if pkg.description %}<br><small class="text-muted">{{ pkg.description }}</small>{% endif %}
+      </td>
+      <td class="text-muted small ps-3">{{ pkg.filename }}<br>{{ (pkg.file_size / 1048576)|round(1) }} MB</td>
+      <td class="small ps-3">{{ pkg.silent_args|default(pkg.silent|default('—')) }}</td>
+      {% if can_write %}
+      <td>
+        <div class="d-flex justify-content-center align-items-center gap-2 px-2">
+        <button type="button" class="btn btn-xs btn-outline-primary pkg-edit-btn"
+                title="编辑" data-id="{{ pkg.id }}" data-name="{{ pkg.name }}"
+                data-ver="{{ pkg.version }}" data-silent="{{ pkg.silent_args|default(pkg.silent|default('')) }}"
+                data-desc="{{ pkg.description|default('') }}">
+          <i class="ti ti-pencil"></i>
+        </button>
+        <form method="post" class="d-inline"
+              onsubmit="return confirm('确定删除安装包 {{ pkg.name|e('js') }} {{ pkg.version|e('js') }}？\n磁盘文件也将一并删除，此操作不可恢复。')">
+          <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="_action" value="delete_package">
+          <input type="hidden" name="pkg_id" value="{{ pkg.id }}">
+          <button type="submit" class="btn btn-xs btn-outline-danger" title="删除">
+            <i class="ti ti-trash"></i>
+          </button>
+        </form>
+        </div>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# 编辑安装包弹窗 #}
+  <div class="modal fade" id="pkgEditModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form method="post">
+          <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="_action" value="update_package">
+          <input type="hidden" name="pkg_id" id="edit_pkg_id">
+          <div class="modal-header py-2"><h5 class="modal-title">编辑安装包</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <div class="mb-2"><label class="form-label small fw-bold">名称</label>
+              <input type="text" name="pkg_name" id="edit_pkg_name" class="form-control form-control-sm" required></div>
+            <div class="mb-2"><label class="form-label small fw-bold">版本</label>
+              <input type="text" name="pkg_version" id="edit_pkg_ver" class="form-control form-control-sm" required></div>
+            <div class="mb-2"><label class="form-label small fw-bold">静默参数</label>
+              <input type="text" name="silent_args" id="edit_pkg_silent" class="form-control form-control-sm"></div>
+            <div class="mb-2"><label class="form-label small fw-bold">描述</label>
+              <input type="text" name="pkg_desc" id="edit_pkg_desc" class="form-control form-control-sm"></div>
+          </div>
+          <div class="modal-footer py-2">
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-device-floppy me-1"></i>保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.pkg-edit-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('edit_pkg_id').value = this.dataset.id;
+    document.getElementById('edit_pkg_name').value = this.dataset.name;
+    document.getElementById('edit_pkg_ver').value = this.dataset.ver;
+    document.getElementById('edit_pkg_silent').value = this.dataset.silent;
+    document.getElementById('edit_pkg_desc').value = this.dataset.desc;
+    new bootstrap.Modal(document.getElementById('pkgEditModal')).show();
+  });
+});
+
+{# 上传进度 #}
+var form = document.getElementById('uploadPackageForm');
+if (form) {
+  form.addEventListener('submit', function(e) {
+    var fileInput = form.querySelector('input[type=file]');
+    if (!fileInput.files[0]) return;
+    if (window.XMLHttpRequest && 'upload' in new XMLHttpRequest()) {
+      e.preventDefault();
+      var xhr = new XMLHttpRequest();
+      var prog = document.getElementById('uploadProgress');
+      var bar = document.getElementById('uploadBar');
+      var pct = document.getElementById('uploadPercent');
+      var spd = document.getElementById('uploadSpeed');
+      var msg = document.getElementById('uploadMsg');
+      var btn = document.getElementById('uploadBtn');
+      prog.classList.remove('d-none'); msg.classList.add('d-none');
+      btn.disabled = true;
+      var t0 = Date.now(), loaded0 = 0;
+      xhr.upload.onprogress = function(ev) {
+        if (ev.lengthComputable) {
+          var p = Math.round(ev.loaded / ev.total * 100);
+          bar.style.width = p + '%'; pct.textContent = p + '%';
+          var dt = (Date.now() - t0) / 1000;
+          if (dt > 0.5) { var s = (ev.loaded - loaded0) / dt / 1024 / 1024; spd.textContent = s.toFixed(1) + ' MB/s'; loaded0 = ev.loaded; }
+        }
+      };
+      xhr.onload = function() {
+        btn.disabled = false; prog.classList.add('d-none');
+        try { var r = JSON.parse(xhr.responseText); } catch(e) { var r = {ok:false, message:'解析响应失败'}; }
+        msg.className = 'mt-2 ' + (r.ok ? 'text-success' : 'text-danger') + ' small'; msg.classList.remove('d-none');
+        msg.textContent = r.message;
+        if (r.ok) setTimeout(function(){ location.reload(); }, 1500);
+      };
+      xhr.onerror = function() { btn.disabled = false; prog.classList.add('d-none'); msg.className='mt-2 text-danger small d-none'; msg.textContent='网络错误'; msg.classList.remove('d-none'); };
+      xhr.open('POST', window.location.pathname);
+      var fd = new FormData(form);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.send(fd);
+    }
+  });
+}
+</script>

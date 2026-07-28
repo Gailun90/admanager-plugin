@@ -1,0 +1,166 @@
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/aduser.php">
+        <i class="ti ti-users me-1"></i>AD用户管理
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/computer_query.php">
+        <i class="ti ti-search me-1"></i>计算机查询
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/bitlocker.php">
+        <i class="ti ti-key me-1"></i>BitLocker密钥
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/adgroup.php">
+        <i class="ti ti-shield-lock me-1"></i>AD安全组
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/usertemplate.php">
+        <i class="ti ti-template me-1"></i>用户模板
+      </a>
+    </li>
+  </ul>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <form method="get" class="d-flex align-items-end flex-nowrap gap-2">
+        <div class="ad-search-input">
+          <label class="form-label mb-1 small">搜索计算机（主机名 / 序列号 / IP）</label>
+          <div class="input-group input-group-sm">
+            <input type="text" name="keyword" class="form-control" value="{{ keyword }}" placeholder="输入关键词回车搜索...">
+            <button type="submit" class="btn btn-primary"><i class="ti ti-search me-1"></i>搜索</button>
+          </div>
+        </div>
+        <div class="ad-search-input">
+          <label class="form-label mb-1 small">数据源</label>
+          <select name="source" class="form-select form-select-sm">
+            <option value="all" {{ source=='all'?'selected':'' }}>全部数据源</option>
+            <option value="ad" {{ source=='ad'?'selected':'' }}>Active Directory</option>
+            <option value="fastapi" {{ source=='fastapi'?'selected':'' }}>FastAPI 终端</option>
+            <option value="glpi" {{ source=='glpi'?'selected':'' }}>GLPI 资产</option>
+          </select>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="alert alert-warning mt-2">{{ error }}</div>
+  {% endif %}
+
+  {% if keyword %}
+  <div class="row g-3 mt-1">
+
+    {# === AD 计算机 === #}
+    {% if results.ad is not empty %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="ti ti-server me-1"></i>AD 计算机（{{ results.ad|length }} 台）</h6>
+          {% for comp in results.ad %}
+            {% if loop.index==1 %}
+            <a href="bitlocker.php?computer={{ keyword }}" class="btn btn-sm btn-outline-warning" title="查询BitLocker密钥"><i class="ti ti-key me-1"></i>BitLocker密钥</a>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="table-responsive">
+          <div class="ad-table-wrap">
+<table class="table adm-table table-hover table-sm mb-0 align-middle">
+            <thead class="table-light"><tr><th>计算机名</th><th>DNS主机名</th><th>操作系统</th><th>描述</th><th>最后登录</th></tr></thead>
+            <tbody>
+              {% for c in results.ad %}
+              <tr>
+                <td><code>{{ c.name ?? '—' }}</code></td>
+                <td class="small">{{ c.dnshostname ?? '—' }}</td>
+                <td><span class="badge bg-info">{{ c.operatingsystem ?? '—' }}</span></td>
+                <td class="small text-muted">{{ c.description ?? '—' }}</td>
+                <td class="small">{% if c.last_logon_unix is defined %}{{ c.last_logon_unix|date('Y-m-d H:i') }}{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+</div>
+        </div>
+        </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# === FastAPI 终端 === #}
+    {% if results.fastapi is not empty %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="ti ti-cpu me-1"></i>FastAPI 终端（{{ results.fastapi|length }} 台）</h6>
+        </div>
+        <div class="table-responsive">
+          <div class="ad-table-wrap">
+<table class="table adm-table table-hover table-sm mb-0 align-middle">
+            <thead class="table-light"><tr><th>序列号</th><th>主机名</th><th>IP</th><th>系统</th><th>CPU</th><th>内存</th><th>最后上报</th></tr></thead>
+            <tbody>
+              {% for c in results.fastapi %}
+              <tr>
+                <td><code class="small">{{ c.serial ?? '—' }}</code></td>
+                <td>{{ c.hostname ?? '—' }}</td>
+                <td class="small">{{ c.ip ?? '—' }}</td>
+                <td><span class="badge bg-secondary">{{ c.os_name ?? '' }} {{ c.os_version ?? '' }}</span></td>
+                <td class="small">{{ c.cpu ?? '—' }}</td>
+                <td class="small">{{ c.memory_gb is defined ? c.memory_gb~'GB' : '—' }}</td>
+                <td class="small">{{ c.last_seen ?? '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# === GLPI 资产 === #}
+    {% if results.glpi_computers is not empty %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header"><h6 class="mb-0"><i class="ti ti-devices me-1"></i>GLPI 已导入资产（{{ results.glpi_computers|length }} 台）</h6></div>
+        <div class="table-responsive">
+          <div class="ad-table-wrap">
+<table class="table adm-table table-hover table-sm mb-0 align-middle">
+            <thead class="table-light"><tr><th>名称</th><th>序列号</th><th>制造商</th><th>型号</th><th>系统</th><th>联系人</th><th>更新时间</th></tr></thead>
+            <tbody>
+              {% for c in results.glpi_computers %}
+              <tr>
+                <td><a href="/front/computer.form.php?id={{ c.id }}" target="_blank">{{ c.name }}</a></td>
+                <td><code class="small">{{ c.serial ?? '—' }}</code></td>
+                <td class="small">{{ c.manufacturer ?? '—' }}</td>
+                <td class="small">{{ c.model ?? '—' }}</td>
+                <td><span class="badge bg-success">{{ c.os_name ?? '—' }}</span></td>
+                <td class="small">{{ c.contact ?? '—' }}</td>
+                <td class="small">{{ c.date_mod }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if results.ad is empty and results.fastapi is empty and results.glpi_computers is empty %}
+      <div class="col-12"><div class="alert alert-info">三源均未找到匹配计算机</div></div>
+    {% endif %}
+
+  </div>
+  {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="ti ti-search fs-1"></i>
+      <p class="mt-2">输入计算机名、序列号或 IP 地址开始搜索</p>
+    </div>
+  {% endif %}
+</div>

@@ -1,0 +1,639 @@
+/* ═══════════════════════════════════════════════════════════════
+   Agent 对话页面样式 — Premium ChatGPT-like UI
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 布局 ── */
+.agent-chat-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - var(--adm-chrome-offset, 76px) - 10px);
+}
+
+.agent-layout {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+}
+
+.agent-chat-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--adm-surface, #fff);
+    border: 1px solid var(--adm-border, #d1d0c8);
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.agent-workspace-panel {
+    width: 320px;
+    flex-shrink: 0;
+    background: var(--adm-surface, #fff);
+    border: 1px solid var(--adm-border, #d1d0c8);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── 消息列表 ── */
+.agent-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    scroll-behavior: smooth;
+}
+
+.agent-messages::-webkit-scrollbar {
+    width: 6px;
+}
+.agent-messages::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+.agent-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ── 消息气泡 ── */
+.agent-msg {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    animation: msgFadeIn 0.3s ease;
+}
+
+@keyframes msgFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.agent-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.agent-msg-user .agent-avatar {
+    background: var(--adm-accent, #1D9E75);
+    color: #fff;
+}
+
+.agent-msg-assistant .agent-avatar {
+    background: #6366f1;
+    color: #fff;
+}
+
+.agent-bubble {
+    max-width: 75%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    line-height: 1.6;
+    font-size: 14px;
+    word-break: break-word;
+}
+
+.agent-msg-user .agent-bubble {
+    background: var(--adm-accent, #1D9E75);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.agent-msg-assistant .agent-bubble {
+    background: #f0f0ee;
+    color: var(--adm-text, #3d3d3a);
+    border-bottom-left-radius: 4px;
+}
+
+.agent-bubble p {
+    margin-bottom: 8px;
+}
+.agent-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.agent-bubble code {
+    background: rgba(0,0,0,0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.agent-msg-user .agent-bubble code {
+    background: rgba(255,255,255,0.2);
+}
+
+.agent-bubble pre {
+    background: rgba(0,0,0,0.06);
+    padding: 10px 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 8px 0;
+    font-size: 13px;
+}
+
+.agent-bubble ul, .agent-bubble ol {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.agent-capabilities {
+    list-style: none;
+    padding-left: 0;
+    margin: 8px 0;
+}
+
+.agent-capabilities li {
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.agent-capabilities li i {
+    color: var(--adm-accent, #1D9E75);
+    margin-right: 6px;
+}
+
+.agent-hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(99, 102, 241, 0.08);
+    border-radius: 6px;
+    border-left: 3px solid #6366f1;
+}
+
+/* ── 工具调用展示 ── */
+.agent-tool-call {
+    margin: 8px 0;
+    padding: 10px 12px;
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.agent-tool-call-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: #6366f1;
+    margin-bottom: 4px;
+}
+
+.agent-tool-call-header i {
+    font-size: 16px;
+}
+
+.agent-tool-call-args {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: #666;
+    background: rgba(0,0,0,0.04);
+    padding: 6px 8px;
+    border-radius: 4px;
+    margin-top: 4px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.agent-tool-result {
+    margin: 6px 0;
+    padding: 8px 10px;
+    background: rgba(29, 158, 117, 0.06);
+    border: 1px solid rgba(29, 158, 117, 0.15);
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.agent-tool-result.has-error {
+    background: rgba(217, 83, 79, 0.06);
+    border-color: rgba(217, 83, 79, 0.15);
+}
+
+/* ── 打字指示器 ── */
+.agent-typing {
+    display: flex;
+    gap: 4px;
+    padding: 8px 0;
+}
+
+.agent-typing span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #aaa;
+    animation: typingBounce 1.4s infinite;
+}
+
+.agent-typing span:nth-child(2) { animation-delay: 0.2s; }
+.agent-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ── 输入区域 ── */
+.agent-input-area {
+    border-top: 1px solid var(--adm-border, #d1d0c8);
+    padding: 12px 16px;
+    background: var(--adm-surface, #fff);
+}
+
+.agent-input-wrapper {
+    position: relative;
+}
+
+.agent-references {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.agent-ref-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.agent-ref-chip .ref-remove {
+    cursor: pointer;
+    opacity: 0.6;
+    font-size: 14px;
+}
+
+.agent-ref-chip .ref-remove:hover {
+    opacity: 1;
+}
+
+.agent-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.agent-input {
+    flex: 1;
+    border: 1px solid var(--adm-border, #d1d0c8);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    resize: none;
+    max-height: 120px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+.agent-input:focus {
+    outline: none;
+    border-color: var(--adm-accent, #1D9E75);
+    box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.1);
+}
+
+.agent-input-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.agent-input-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #999;
+}
+
+.agent-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.agent-status .ti-point-filled {
+    font-size: 8px;
+}
+
+.agent-status.streaming .ti-point-filled {
+    color: #f0ad4e !important;
+    animation: pulse 1.5s infinite;
+}
+
+.agent-status.error .ti-point-filled {
+    color: #d9534f !important;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.agent-shortcut {
+    color: var(--adm-text-muted, #787872);
+}
+
+.agent-shortcut kbd {
+    background: #f1f3f5;
+    border: 1px solid #ced4da;
+    color: #495057;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 10px;
+}
+
+/* ── @ 引用补全浮层 ── */
+.agent-mentions-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid var(--adm-border, #d1d0c8);
+    border-radius: 8px;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+    max-height: 240px;
+    overflow-y: auto;
+    margin-bottom: 4px;
+    z-index: 100;
+}
+
+.mentions-section {
+    padding: 6px 0;
+}
+
+.mentions-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #999;
+    padding: 2px 12px;
+}
+
+.mentions-items {
+    /* items injected by JS */
+}
+
+.mention-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s;
+}
+
+.mention-item:hover, .mention-item.active {
+    background: var(--adm-accent-light, #e8f5f0);
+}
+
+.mention-item .mention-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.mention-item .mention-icon.client { background: #e3f2fd; color: #1976d2; }
+.mention-item .mention-icon.qid    { background: #fff3e0; color: #f57c00; }
+.mention-item .mention-icon.group  { background: #f3e5f5; color: #7b1fa2; }
+
+.mention-item .mention-name {
+    font-weight: 500;
+}
+
+.mention-item .mention-meta {
+    font-size: 11px;
+    color: #999;
+    margin-left: auto;
+}
+
+/* ── 工作区面板 ── */
+.workspace-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--adm-border, #d1d0c8);
+}
+
+.workspace-upload-zone {
+    padding: 20px;
+    text-align: center;
+    border-bottom: 1px dashed var(--adm-border, #d1d0c8);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.workspace-upload-zone:hover, .workspace-upload-zone.dragover {
+    background: var(--adm-accent-light, #e8f5f0);
+}
+
+.workspace-upload-zone i {
+    font-size: 32px;
+    color: var(--adm-accent, #1D9E75);
+    display: block;
+    margin-bottom: 8px;
+}
+
+.workspace-upload-zone p {
+    font-size: 13px;
+    color: #666;
+    margin: 0;
+}
+
+.workspace-upload-zone .upload-link {
+    color: var(--adm-accent, #1D9E75);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.upload-progress {
+    margin-top: 8px;
+}
+
+.upload-status-text {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+
+.workspace-files {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.workspace-files::-webkit-scrollbar {
+    width: 5px;
+}
+.workspace-files::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.ws-file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 2px;
+}
+
+.ws-file-item:hover {
+    background: #f5f5f3;
+}
+
+.ws-file-item.selected {
+    background: var(--adm-accent-light, #e8f5f0);
+}
+
+.ws-file-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.ws-file-icon.exe, .ws-file-icon.msi { background: #e3f2fd; color: #1565c0; }
+.ws-file-icon.zip, .ws-file-icon.sevenz { background: #fff3e0; color: #ef6c00; }
+.ws-file-icon.txt, .ws-file-icon.log { background: #f1f8e9; color: #558b2f; }
+.ws-file-icon.default { background: #f5f5f5; color: #757575; }
+
+.ws-file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ws-file-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ws-file-meta {
+    font-size: 11px;
+    color: #999;
+}
+
+.ws-file-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.ws-file-item:hover .ws-file-actions {
+    opacity: 1;
+}
+
+.ws-file-actions button {
+    padding: 2px 4px;
+    font-size: 14px;
+    border: none;
+    background: none;
+    color: #999;
+    cursor: pointer;
+}
+
+.ws-file-actions button:hover {
+    color: var(--adm-accent, #1D9E75);
+}
+
+.ws-file-actions button.delete:hover {
+    color: #d9534f;
+}
+
+.workspace-analyze {
+    padding: 12px 16px;
+    border-top: 1px solid var(--adm-border, #d1d0c8);
+}
+
+.ws-analyze-result {
+    font-size: 13px;
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.ws-analyze-result .analyze-loading {
+    color: #999;
+    text-align: center;
+    padding: 10px;
+}
+
+.ws-analyze-result .analyze-content {
+    background: #f5f5f3;
+    padding: 10px;
+    border-radius: 6px;
+    white-space: pre-wrap;
+}
+
+/* ── 流式光标 ── */
+.stream-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background: var(--adm-accent, #1D9E75);
+    margin-left: 2px;
+    animation: cursorBlink 1s infinite;
+    vertical-align: text-bottom;
+    border-radius: 1px;
+}
+
+@keyframes cursorBlink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* ── 响应式 ── */
+@media (max-width: 768px) {
+    .agent-layout {
+        flex-direction: column;
+    }
+    .agent-workspace-panel {
+        width: 100%;
+        max-height: 300px;
+    }
+    .agent-bubble {
+        max-width: 90%;
+    }
+}

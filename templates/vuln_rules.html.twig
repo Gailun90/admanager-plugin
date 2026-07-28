@@ -1,0 +1,269 @@
+<div class="adm-page">
+  <input type="hidden" id="vuln-csrf" value="{{ csrf_token }}">
+
+  {# GLPI 左侧菜单不支持二级子菜单，故三个漏洞修复子页用内容区页签互相跳转 #}
+  <ul class="nav nav-tabs mb-3" id="vuln-subtabs">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_import.php">
+        <i class="ti ti-file-import me-1"></i>导入记录
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_tasks.php">
+        <i class="ti ti-list-check me-1"></i>待处理任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/vuln_rules.php">
+        <i class="ti ti-book me-1"></i>QID规则库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_correct.php">
+        <i class="ti ti-message-chatbot me-1"></i>对话纠正
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/agent.php">
+        <i class="ti ti-robot me-1"></i>AI Agent
+      </a>
+    </li>
+  </ul>
+
+  <div class="alert alert-info py-2 small mb-3">
+    <i class="ti ti-info-circle me-1"></i>
+    命中<b>生效/草稿</b>规则的任务会直接套用修复策略，不再调用 LLM 解析；<b>草稿</b>规则由 LLM 自动生成，需在此转正（改为生效）。
+  </div>
+
+  {# == 全局熔断开关 == #}
+  {% if can_write %}
+  <div class="card mb-3 border-danger" id="kill-switch-card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center bg-danger bg-opacity-10">
+      <h5 class="mb-0"><i class="ti ti-shield-off me-1 text-danger"></i>全局熔断开关</h5>
+      <span id="kill-switch-status" class="badge bg-secondary">查询中…</span>
+    </div>
+    <div class="card-body py-2">
+      <div class="d-flex align-items-center gap-3">
+        <span class="small text-muted">开启后所有自动下发暂停（人工确认下发不受影响）</span>
+        <button id="kill-switch-toggle" class="btn btn-sm btn-outline-danger" disabled>
+          <i class="ti ti-shield-off me-1"></i>查询中…
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# == 新建规则 == #}
+  {% if can_write %}
+  <div class="card mb-3">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="ti ti-plus me-1"></i>新建规则</h5>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#newRuleForm">展开/收起</button>
+    </div>
+    <div class="collapse" id="newRuleForm">
+      <div class="card-body">
+        <form id="rule-create-form" class="row g-2">
+          <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="create_rule">
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">QID *</label>
+            <input type="text" name="qid" class="form-control form-control-sm" required placeholder="如 90043">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">修复类型 *</label>
+            <select name="fix_type" class="form-select form-select-sm" required>
+              <option value="registry_fix">注册表修复</option>
+              <option value="software_upgrade">软件升级</option>
+              <option value="software_uninstall">软件卸载</option>
+              <option value="patch_install">补丁安装</option>
+              <option value="manual_review">人工处理</option>
+              <option value="unsupported">暂不支持</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">默认风险</label>
+            <select name="default_risk_level" class="form-select form-select-sm">
+              <option value="low">低</option>
+              <option value="medium" selected>中</option>
+              <option value="high">高</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">状态</label>
+            <select name="status" class="form-select form-select-sm">
+              <option value="active" selected>生效</option>
+              <option value="draft">草稿</option>
+              <option value="disabled">停用</option>
+            </select>
+          </div>
+          <div class="col-md-12" id="registry-fields-create" style="display:none">
+            <label class="form-label small fw-bold">注册表修复详细参数</label>
+            <div class="row g-2">
+              <div class="col-md-2">
+                <select name="reg_action" class="form-select form-select-sm" onchange="document.getElementById('reg-value-create').style.display = this.value === 'delete' ? 'none' : ''">
+                  <option value="set">设置值</option>
+                  <option value="delete">删除值</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <input type="text" name="reg_root" class="form-control form-control-sm" placeholder="根键 (HKLM)">
+              </div>
+              <div class="col-md-4">
+                <input type="text" name="reg_subkey" class="form-control form-control-sm" placeholder="注册表路径 (SOFTWARE\...)">
+              </div>
+              <div class="col-md-3">
+                <input type="text" name="reg_name" class="form-control form-control-sm" placeholder="值名称">
+              </div>
+            </div>
+            <div class="row g-2 mt-1" id="reg-value-create">
+              <div class="col-md-6">
+                <input type="text" name="reg_value" class="form-control form-control-sm" placeholder="值数据 (如 1, enabled, true)">
+              </div>
+              <div class="col-md-3">
+                <select name="reg_type" class="form-select form-select-sm">
+                  <option value="string">字符串 (REG_SZ)</option>
+                  <option value="dword">DWORD (REG_DWORD)</option>
+                  <option value="qword">QWORD (REG_QWORD)</option>
+                  <option value="expand">可扩充字符串</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-12">
+            <label class="form-label small fw-bold">动作模板（JSON，可选 — 高级模式）</label>
+            <textarea name="action_template" class="form-control form-control-sm" rows="2"
+              placeholder='亦可通过上方字段填写，保存时自动拼接。手动填 JSON 会覆盖上方字段。'></textarea>
+          </div>
+          <div class="col-md-12">
+            <label class="form-label small fw-bold">回滚方案（JSON，可选；不可逆操作必填）</label>
+            <textarea name="rollback_plan" class="form-control form-control-sm" rows="2"
+              placeholder='仅 software_uninstall / service_config 等不可逆操作必填。格式：{"type":"software_uninstall","action":{"package_id":123}}'></textarea>
+          </div>
+          <div class="col-md-12">
+            <label class="form-label small fw-bold">备注</label>
+            <input type="text" name="notes" class="form-control form-control-sm" placeholder="说明来源/适用场景">
+          </div>
+          <div class="col-md-12">
+            <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-device-floppy me-1"></i>保存规则</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# == 规则表 == #}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="ti ti-book me-1"></i>规则列表（{{ rules|length }}）</h5>
+      <input type="search" id="rules-search" class="form-control form-control-sm w-auto" placeholder="搜索 QID / 类型 / 备注…">
+    </div>
+    <div class="card-body p-0">
+      <div class="ad-table-wrap">
+        <table class="table adm-table table-sm table-hover mb-0 align-middle" id="rules-table">
+          <thead>
+            <tr><th>QID</th><th>修复类型</th><th>默认风险</th><th>状态</th><th>来源</th><th>备注</th>
+                {% if can_write %}<th>操作</th>{% endif %}</tr>
+          </thead>
+          <tbody>
+          {% if rules is empty %}
+            <tr><td colspan="7" class="text-center text-muted py-3">暂无规则</td></tr>
+          {% else %}
+            {% for r in rules %}
+            <tr data-id="{{ r.id }}" data-qid="{{ r.qid }}" data-fix="{{ r.fix_type }}"
+                data-risk="{{ r.default_risk_level }}" data-status="{{ r.status }}"
+                data-notes="{{ r.notes|default('') }}" data-rollback="{{ r.rollback_json|default('') }}"
+                class="{{ r.status == 'draft' ? 'table-warning' : '' }}">
+              <td>{{ r.qid }}</td>
+              <td>{{ r.fix_label }}</td>
+              <td>{{ r.risk_label }}</td>
+              <td><span class="badge {{ r.status_badge_class }}">{{ r.status_label }}</span></td>
+              <td>{{ r.source|default('') }}</td>
+              <td class="small">{{ r.notes|default('')|slice(0,60) }}</td>
+              {% if can_write %}
+              <td class="text-nowrap">
+                <button class="btn btn-xs btn-outline-primary btn-edit-rule" data-id="{{ r.id }}"><i class="ti ti-edit"></i></button>
+                <button class="btn btn-xs btn-outline-danger btn-del-rule" data-id="{{ r.id }}"><i class="ti ti-trash"></i></button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# == 编辑弹窗 == #}
+  <div class="modal fade" id="editRuleModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="rule-edit-form">
+          <div class="modal-header py-2"><h5 class="modal-title">编辑规则</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="update_rule">
+            <input type="hidden" name="rule_id" id="edit_rule_id">
+            <div class="mb-2"><label class="form-label small fw-bold">QID</label>
+              <input type="text" id="edit_qid" class="form-control form-control-sm" disabled></div>
+            <div class="mb-2"><label class="form-label small fw-bold">修复类型</label>
+              <select id="edit_fix_type" name="fix_type" class="form-select form-select-sm">
+                <option value="registry_fix">注册表修复</option>
+                <option value="software_upgrade">软件升级</option>
+                <option value="software_uninstall">软件卸载</option>
+                <option value="patch_install">补丁安装</option>
+                <option value="manual_review">人工处理</option>
+                <option value="unsupported">暂不支持</option>
+              </select></div>
+            <div class="mb-2"><label class="form-label small fw-bold">默认风险</label>
+              <select id="edit_default_risk" name="default_risk_level" class="form-select form-select-sm">
+                <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
+              </select></div>
+            <div class="mb-2"><label class="form-label small fw-bold">状态</label>
+              <select id="edit_status" name="status" class="form-select form-select-sm">
+                <option value="active">生效</option><option value="draft">草稿</option><option value="disabled">停用</option>
+              </select></div>
+            <div class="mb-2"><label class="form-label small fw-bold">备注</label>
+              <input type="text" id="edit_notes" name="notes" class="form-control form-control-sm"></div>
+            <div class="mb-2" id="registry-fields-edit" style="display:none">
+              <label class="form-label small fw-bold">注册表修复参数</label>
+              <div class="row g-2">
+                <div class="col-4">
+                  <select name="reg_action" class="form-select form-select-sm">
+                    <option value="set">设置值</option>
+                    <option value="delete">删除值</option>
+                  </select>
+                </div>
+                <div class="col-4">
+                  <input type="text" name="reg_root" class="form-control form-control-sm" placeholder="根键 (HKLM)">
+                </div>
+                <div class="col-4">
+                  <input type="text" name="reg_name" class="form-control form-control-sm" placeholder="值名称">
+                </div>
+              </div>
+              <div class="row g-2 mt-1">
+                <div class="col-8">
+                  <input type="text" name="reg_subkey" class="form-control form-control-sm" placeholder="注册表路径 (SOFTWARE\...)">
+                </div>
+                <div class="col-4">
+                  <input type="text" name="reg_value" class="form-control form-control-sm" placeholder="值数据">
+                </div>
+              </div>
+            </div>
+            <div class="mb-2"><label class="form-label small fw-bold">回滚方案（JSON）</label>
+              <textarea id="edit_rollback" name="rollback_plan" class="form-control form-control-sm" rows="2"
+                placeholder='{"type":"software_uninstall","action":{"package_id":123}}'></textarea></div>
+          </div>
+          <div class="modal-footer py-2">
+            <button type="submit" class="btn btn-sm btn-primary">保存</button>
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/plugins/admanager/js/vuln.js"></script>
+</div>

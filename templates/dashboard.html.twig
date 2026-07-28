@@ -1,0 +1,228 @@
+{#
+  admanager Dashboard v2
+  3-layer: KPI cards → panels → collapsible details
+  v4.8: CSS 卡片颜色改用 rgba（Bootstrap 4 兼容，bg-opacity-10 不生效）
+#}
+
+
+{# Dashboard v2: 卡片高度一致、一行截断、一页看完 #}
+<style>
+/* ── KPI 卡片统一高度 ── */
+.dash-stat-card {
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.dash-stat-card .card-body {
+    padding: 0.5rem 1rem !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+.dash-stat-value {
+    font-size: 1.75rem;
+    line-height: 1.2;
+    font-weight: 700;
+    max-height: 1.2em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dash-stat-label {
+    font-size: 0.8rem;
+    opacity: 0.75;
+    margin-top: 0.15rem;
+}
+.dash-stat-sub {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin-top: 0.1rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── 面板卡片统一高度 ── */
+#onlinePanel,
+#taskPanel {
+    max-height: 260px;
+    overflow-y: auto;
+}
+#onlinePanel::-webkit-scrollbar,
+#taskPanel::-webkit-scrollbar {
+    width: 4px;
+}
+#onlinePanel::-webkit-scrollbar-thumb,
+#taskPanel::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 2px;
+}
+
+/* ── 表格行截断 ── */
+#onlinePanel td {
+    max-height: 2.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#onlinePanel td strong {
+    max-width: 180px;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#taskPanel td {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── 同步信息区高度 ── */
+#syncPanel {
+    max-height: 80px;
+    overflow-y: auto;
+}
+</style>
+
+<div class="adm-page">
+  <div class="adm-toolbar">
+    <div class="adm-toolbar-title">
+      <span><i class="ti ti-dashboard me-1"></i>总览</span>
+    </div>
+    <div class="adm-toolbar-actions">
+      <small class="text-muted" id="dashUpdated">加载中...</small>
+    </div>
+  </div>
+
+  {# Layer 1: KPI Cards #}
+  <div class="row g-3 mb-3" id="dashCards">
+    <div class="col-md-3">
+      <div class="card dash-stat-card">
+        <div class="card-body text-center py-3">
+          <div class="dash-stat-value text-success" id="kpiOnline">—</div>
+          <div class="dash-stat-label">在线终端</div>
+          <div class="dash-stat-sub text-success" id="kpiOnlineSub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card dash-stat-card">
+        <div class="card-body text-center py-3">
+          <div class="dash-stat-value text-primary" id="kpiTotal">—</div>
+          <div class="dash-stat-label">已注册</div>
+          <div class="dash-stat-sub" id="kpiTotalSub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card dash-stat-card">
+        <div class="card-body text-center py-3">
+          <div class="dash-stat-value text-warning" id="kpiPending">—</div>
+          <div class="dash-stat-label">待部署</div>
+          <div class="dash-stat-sub" id="kpiPendingSub"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card dash-stat-card">
+        <div class="card-body text-center py-3">
+          <div class="dash-stat-value text-danger" id="kpiFailed">—</div>
+          <div class="dash-stat-label">部署失败</div>
+          <div class="dash-stat-sub" id="kpiFailedSub"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Layer 2: Panels #}
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <strong><i class="ti ti-plug me-1"></i>在线终端</strong>
+          <a href="{{ path('plugins/admanager/front/import.php') }}" class="small">查看全部 &rarr;</a>
+        </div>
+        <div class="card-body p-0" id="onlinePanel">
+          <div class="text-center text-muted py-4">加载中...</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <strong><i class="ti ti-package me-1"></i>最近任务</strong>
+          <a href="{{ path('plugins/admanager/front/deploy.php') }}" class="small">部署任务 &rarr;</a>
+        </div>
+        <div class="card-body p-0" id="taskPanel">
+          <div class="text-center text-muted py-4">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Layer 3: Collapsible #}
+  <div class="accordion" id="dashAccordion">
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#syncInfo">
+          <i class="ti ti-refresh me-2"></i>AD 同步 / 审计概要
+        </button>
+      </h2>
+      <div id="syncInfo" class="accordion-collapse collapse">
+        <div class="accordion-body" id="syncPanel">
+          <div class="text-center text-muted py-3">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var esc = window.escHtml || function(s){ var d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; };
+  fetch('/plugins/admanager/ajax/dashboard_data.php')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var s = d.api_stats || {};
+      document.getElementById('kpiOnline').textContent = s.online_clients || 0;
+      document.getElementById('kpiTotal').textContent = s.total_clients || 0;
+      document.getElementById('kpiPending').textContent = s.pending_tasks || 0;
+      document.getElementById('kpiFailed').textContent = s.failed_tasks || 0;
+      document.getElementById('kpiOnlineSub').textContent = (d.online_list||[]).length + ' / ' + (s.total_clients||0);
+      document.getElementById('kpiTotalSub').textContent = '差异: ' + (d.diff_count||0) + '\u53f0';
+      document.getElementById('dashUpdated').textContent = '\u66f4\u65b0: ' + new Date().toLocaleTimeString();
+
+      // Online panel
+      var ol = d.online_list || [];
+      var oh = ol.length ? '<table class="table table-sm table-hover mb-0"><tbody>' : '<div class="text-center text-muted py-4">\u6682\u65e0\u5728\u7ebf\u7ec8\u7aef</div>';
+      ol.slice(0,10).forEach(function(c){
+        oh += '<tr><td><strong>'+esc(c.hostname)+'</strong><br><small class="text-muted">'+(c.serial||'').substring(0,20)+'...</small></td><td class="small text-end">'+esc(c.ip||'')+'<br>'+esc(c.current_user||'\u2014')+'</td></tr>';
+      });
+      if(ol.length) oh += '</tbody></table>';
+      document.getElementById('onlinePanel').innerHTML = oh;
+
+      // Task panel
+      var tasks = d.recent_tasks || [];
+      var th = tasks.length ? '<table class="table table-sm table-hover mb-0"><tbody>' : '<div class="text-center text-muted py-4">\u6682\u65e0\u90e8\u7f72\u4efb\u52a1</div>';
+      tasks.forEach(function(t){
+        var b = {'active':'<span class="badge bg-primary">\u8fdb\u884c\u4e2d</span>','completed':'<span class="badge bg-success">\u5df2\u5b8c\u6210</span>','partial':'<span class="badge bg-warning text-dark">\u90e8\u5206\u5931\u8d25</span>','failed':'<span class="badge bg-danger">\u5931\u8d25</span>'}[t.status] || '<span class="badge bg-secondary">'+esc(t.status)+'</span>';
+        var p = t.progress || {};
+        var pct = p.total>0 ? Math.round((p.success+p.failed)/p.total*100) : 0;
+        th += '<tr><td>'+esc(t.name)+' <small class="text-muted">'+esc(t.package_name||'')+'</small></td><td>'+b+'</td><td class="small text-end">'+pct+'%</td></tr>';
+      });
+      if(tasks.length) th += '</tbody></table>';
+      document.getElementById('taskPanel').innerHTML = th;
+
+      // Sync panel
+      var sh = '<div class="row"><div class="col-6"><strong>AD同步</strong>: '+(d.last_sync?esc(d.last_sync.substring(0,16).replace('T',' ')):'无')+'</div><div class="col-6"><strong>本周审计</strong>: '+(d.week_audit?d.week_audit.length:'0')+'条</div></div>';
+      if(d.diff_count > 0) sh += '<div class="alert alert-warning py-1 mt-2 mb-0 small">⚠ '+esc(d.diff_count)+'台终端存在差异，<a href="?diff=1">前往处理 &rarr;</a></div>';
+      document.getElementById('syncPanel').innerHTML = sh;
+    })
+    .catch(function(){ document.getElementById('dashUpdated').textContent = '\u52a0\u8f7d\u5931\u8d25'; });
+})();
+</script>
+

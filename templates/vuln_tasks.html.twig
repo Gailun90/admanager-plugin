@@ -1,0 +1,157 @@
+<div class="adm-page">
+  <input type="hidden" id="vuln-csrf" value="{{ csrf_token }}">
+
+  {# GLPI 左侧菜单不支持二级子菜单，故三个漏洞修复子页用内容区页签互相跳转 #}
+  <ul class="nav nav-tabs mb-3" id="vuln-subtabs">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_import.php">
+        <i class="ti ti-file-import me-1"></i>导入记录
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/vuln_tasks.php">
+        <i class="ti ti-list-check me-1"></i>待处理任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_rules.php">
+        <i class="ti ti-book me-1"></i>QID规则库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/vuln_correct.php">
+        <i class="ti ti-message-chatbot me-1"></i>对话纠正
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/agent.php">
+        <i class="ti ti-robot me-1"></i>AI Agent
+      </a>
+    </li>
+  </ul>
+
+  <div class="alert alert-info py-2 small mb-3">
+    <i class="ti ti-info-circle me-1"></i>
+    批准<b>注册表修复 / 软件卸载 / 软件升级 / 补丁安装</b>类任务时，<b>仅「低/中风险 + 规则已转正(active)」</b>才会随批准自动下发执行；
+    <b class="text-danger">高风险</b>或<b>规则未转正(draft/纯 LLM 解析)</b>的任务批准后停在「已批准」，
+    需人工先到 <b>QID 规则库</b>转正规则，再点行内 <i class="ti ti-send"></i> <b>确认下发</b>。
+    <b>软件升级</b>需先匹配到软件部署库中的安装包：未匹配时停在「已批准」，显示
+    <i class="ti ti-refresh"></i> <b>重新匹配</b>（可去软件部署库补充上传后重跑）；匹配成功后与注册表修复一样自动下发。
+    <b>补丁安装</b>复用 Windows Update 通道、<b>显式禁止自动重启</b>，装完若待重启会标记「待重启生效」。
+    低风险且已匹配资产的任务默认预勾选；<b class="text-danger">高风险任务标红且不预选</b>。
+  </div>
+
+  {# == 筛选 + 批量 == #}
+  <form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-auto">
+      <label class="form-label small fw-bold">状态</label>
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="" {{ initial_status == '' ? 'selected' }}>全部</option>
+        <option value="pending" {{ initial_status == 'pending' ? 'selected' }}>待审批</option>
+        <option value="approved" {{ initial_status == 'approved' ? 'selected' }}>已批准</option>
+        <option value="dispatched" {{ initial_status == 'dispatched' ? 'selected' }}>已下发</option>
+        <option value="done" {{ initial_status == 'done' ? 'selected' }}>执行成功</option>
+        <option value="failed" {{ initial_status == 'failed' ? 'selected' }}>执行失败</option>
+        <option value="rejected" {{ initial_status == 'rejected' ? 'selected' }}>已拒绝</option>
+        <option value="needs_manual" {{ initial_status == 'needs_manual' ? 'selected' }}>已手动处理</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <a href="?status=pending" class="btn btn-sm btn-outline-secondary">重置为待审批</a>
+    </div>
+    {% if can_write %}
+    <div class="col-auto ms-auto">
+      <button type="button" id="batch-approve" class="btn btn-sm btn-success">
+        <i class="ti ti-check me-1"></i>批量批准勾选项
+      </button>
+    </div>
+    {% endif %}
+  </form>
+
+  {# == 任务表 == #}
+  <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="ti ti-list-check me-1"></i>修复任务（{{ tasks|length }}）</h5>
+      <input type="search" id="tasks-search" class="form-control form-control-sm w-auto" placeholder="搜索 QID / 标题 / 资产 / IP…">
+    </div>
+    <div class="card-body p-0">
+      <div class="ad-table-wrap">
+        <table class="table adm-table table-sm table-hover mb-0 align-middle" id="tasks-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="check-all"></th>
+              <th>#</th><th>QID</th><th>标题</th><th>IP</th><th>DNS</th>
+              <th>资产</th><th>修复类型</th><th>风险</th><th>建议摘要</th><th>状态</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% if tasks is empty %}
+            <tr><td colspan="12" class="text-center text-muted py-3">暂无任务</td></tr>
+          {% else %}
+            {% for t in tasks %}
+            <tr data-id="{{ t.id }}" data-fix="{{ t.fix_type }}" data-matched="{{ t.matched_package_id|default('') }}" class="{{ t.risk_level == 'high' ? 'table-danger' : '' }}">
+              <td>
+                {% if t.status == 'pending' and can_write %}
+                  <input type="checkbox" class="task-check" value="{{ t.id }}"
+                         {{ t.auto_approve ? 'checked' : '' }}>
+                {% endif %}
+              </td>
+              <td>{{ t.id }}</td>
+              <td>{{ t.qid }}</td>
+              <td>{{ t.title|default('')|slice(0,60) }}</td>
+              <td>{{ t.ip|default('—') }}</td>
+              <td>{{ t.dns_name|default('—') }}</td>
+              <td>{{ t.asset_hostname|default('—') }}</td>
+              <td>{{ t.fix_label }}</td>
+              <td><span class="badge {{ t.risk_badge_class }}">{{ t.risk_label }}</span></td>
+              <td class="small">{{ t.action_summary|default('')|slice(0,80) }}</td>
+              <td class="cell-status"><span class="badge {{ t.status_badge_class }}">{{ t.status_label }}</span></td>
+              <td class="text-nowrap">
+                <button class="btn btn-xs btn-outline-info btn-detail" data-id="{{ t.id }}">
+                  <i class="ti ti-eye"></i>
+                </button>
+                {% if t.status == 'pending' and can_write %}
+                  <button class="btn btn-xs btn-success task-act" data-action="approve" title="批准"><i class="ti ti-check"></i></button>
+                  <button class="btn btn-xs btn-danger task-act" data-action="reject" title="拒绝"><i class="ti ti-x"></i></button>
+                  <button class="btn btn-xs btn-outline-secondary task-act" data-action="mark_manual" title="标记手动处理"><i class="ti ti-hand-stop"></i></button>
+                {% endif %}
+                {% if t.status == 'approved' and can_write %}
+                  {% if t.fix_type in ['registry_fix', 'software_uninstall', 'software_upgrade', 'patch_install'] %}
+                    {% if t.fix_type == 'software_upgrade' and t.matched_package_id is null %}
+                      <button class="btn btn-xs btn-warning task-act" data-action="rematch" title="重新匹配软件安装包"><i class="ti ti-refresh"></i> 重新匹配</button>
+                      <div class="rematch-warn small text-warning mt-1">未匹配安装包 · <a href="/plugins/admanager/front/deploy_package.php" target="_blank" class="link-warning">去软件部署库看看</a></div>
+                    {% else %}
+                      <button class="btn btn-xs btn-primary task-act" data-action="dispatch" title="确认下发执行"><i class="ti ti-send"></i></button>
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# == 详情弹窗 == #}
+  <div class="modal fade" id="taskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header py-2"><h5 class="modal-title">任务详情</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body" id="task-detail-body">加载中…</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/plugins/admanager/js/vuln.js"></script>
+</div>
+
+<script>
+  // 全选（仅选中的可勾选框）
+  document.getElementById('check-all')?.addEventListener('change', function() {
+    document.querySelectorAll('.task-check').forEach(c => c.checked = this.checked);
+  });
+</script>
