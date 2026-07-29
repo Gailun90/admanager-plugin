@@ -56,15 +56,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
     }
 }
 
+// 上传删除失败清理
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write && ($_POST['_action'] ?? '') === 'discard_failed_upload') {
+    $f = basename($_POST['filename'] ?? '');
+    $cfg = PluginAdmanagerConfig::getDeployConfig();
+    $pkgDir = rtrim($cfg['pkg_dir'] ?: '/home/glpidev/itasset-api/packages', '/');
+    if ($f !== '') {
+        @unlink($pkgDir . '/' . $f);
+        @unlink($pkgDir . '/' . $f . '.status.json');
+    }
+    Html::redirect($_SERVER['PHP_SELF']);
+}
+
 // ── 数据准备 ──
 $packages = PluginAdmanagerDeploy::getPackages();
+
+// 扫描异步注册失败的孤儿文件（register_package_async.php 写的 .status.json 标记）
+$failedUploads = [];
+$cfg = PluginAdmanagerConfig::getDeployConfig();
+$pkgDir = rtrim($cfg['pkg_dir'] ?: '/home/glpidev/itasset-api/packages', '/');
+if (is_dir($pkgDir)) {
+    foreach (glob($pkgDir . '/*.status.json') as $statusFile) {
+        $data = json_decode(file_get_contents($statusFile), true);
+        if ($data && ($data['ok'] ?? true) === false) {
+            $failedUploads[] = [
+                'filename' => basename(substr($statusFile, 0, -strlen('.status.json'))),
+                'error'    => $data['error'] ?? '未知错误',
+                'ts'       => $data['ts'] ?? '',
+            ];
+        }
+    }
+}
 
 Html::header('安装包库', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/deploy_package.html.twig', [
-    'packages'   => $packages,
-    'can_write'  => $can_write,
-    'csrf_token' => Session::getNewCSRFToken(),
+    'packages'       => $packages,
+    'failed_uploads' => $failedUploads,
+    'can_write'      => $can_write,
+    'csrf_token'     => Session::getNewCSRFToken(),
 ]);
 
 Html::footer();

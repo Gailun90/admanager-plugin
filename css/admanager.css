@@ -205,9 +205,25 @@
 .adm-page .card .card-body {
     padding: var(--adm-space-md);
 }
+/* 默认统一样式：底色/文字用 :where() 零特异性，允许 .bg-success 等语义色覆盖底色，不再需要逐页补丁 */
+.adm-page :where(.card .card-header),
+.adm-page :where(.card-header) {
+    background: var(--adm-bg);
+    color: var(--adm-text);
+}
+/* 抗融合：bg-light 是固定浅色，但 GLPI 暗色主题会把它反相成深色，导致其上文字（含硬编码 --adm-text）看不清。
+   统一在此强制浅底 + 深字，免疫暗色主题；覆盖全站所有 bg-light（表头/徽章/代码块等），无需逐页改。 */
+.adm-page .bg-light {
+    background-color: #f1f3f5 !important;
+    color: #212529 !important;
+}
+/* 浅绿表头（bg-success bg-opacity-10）同理：固定浅绿底 + 深绿字，暗色主题下不反相 */
+.adm-page .bg-success.bg-opacity-10 {
+    background-color: rgba(25, 135, 84, 0.12) !important;
+    color: #14532d !important;
+}
 .adm-page .card .card-header {
     padding: var(--adm-space-sm) var(--adm-space-md);
-    background: var(--adm-bg);
     border-bottom: 1px solid var(--adm-border);
     font-weight: 600;
 }
@@ -362,11 +378,7 @@
     border-color: var(--adm-active-border) !important;
 }
 
-/* ── card header ── */
-.adm-page .card-header {
-    background-color: var(--adm-bg) !important;
-    border-bottom-color: var(--adm-border) !important;
-}
+/* ── card header ── 统一样式见上方 .adm-page :where(.card-header) 规则（已用零特异性，不再需要 adm-header-green 补丁） */
 
 /* ============================================
    16. 统一绿色强调色（消除 Bootstrap 蓝 / 双绿不一致）

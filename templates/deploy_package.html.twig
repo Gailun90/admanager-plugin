@@ -24,6 +24,27 @@
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 
+  {% if failed_uploads is not empty %}
+  <div class="alert alert-danger py-2 px-3 mb-3">
+    <div class="fw-bold small mb-1"><i class="ti ti-alert-triangle me-1"></i>以下文件已上传，但后台注册失败，不会出现在下方列表里：</div>
+    {% for fu in failed_uploads %}
+    <div class="d-flex align-items-center gap-2 small border-top pt-1 mt-1">
+      <span class="fw-semibold">{{ fu.filename }}</span>
+      <span class="text-muted">{{ fu.error }}</span>
+      <span class="text-muted ms-auto">{{ fu.ts|slice(0,19)|replace({'T':' '}) }}</span>
+      {% if can_write %}
+      <form method="post" class="d-inline" onsubmit="return confirm('清除这个失败的上传？磁盘文件也会一起删掉，需要的话重新上传即可。')">
+        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="_action" value="discard_failed_upload">
+        <input type="hidden" name="filename" value="{{ fu.filename }}">
+        <button type="submit" class="btn btn-xs btn-outline-danger">清除</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center py-2">
       <h5 class="mb-0"><i class="ti ti-package me-1"></i>安装包库（{{ packages|length }}）</h5>

@@ -39,6 +39,22 @@ if (!Session::getLoginUserID()) {
 
 PluginAdmanagerProfile::checkRight('read', READ);
 
+// 权限修正：本文件原来所有操作（含 chat/upload/delete/prompt-PUT 这些会让 AI
+// 执行命令、改规则、删任务、改全局 Prompt 的写操作）都只要求最低的 read 权限，
+// 跟 deploy.php 等页面"写操作单独要求 admin+CREATE"的惯例不一致。
+// 这里对会改变系统状态的操作额外要求写权限，只读类操作（suggestions/files/logs/
+// sessions/prompt-GET）维持 read 即可。
+$__action = $_GET['action'] ?? '';
+$__method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$__mutatingAction = in_array($__action, ['chat', 'upload', 'delete'], true)
+    || ($__action === 'prompt' && $__method === 'PUT');
+if ($__mutatingAction && !PluginAdmanagerProfile::canDo('admin', CREATE)) {
+    http_response_code(403);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => '权限不足：此操作需要插件管理权限']);
+    exit;
+}
+
 // 获取 FastAPI 配置
 $cfg = PluginAdmanagerConfig::getFastApiConfig();
 $fastapiUrl  = rtrim($cfg['url'] ?? '', '/');
