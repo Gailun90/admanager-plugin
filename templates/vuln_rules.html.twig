@@ -162,20 +162,22 @@
       <div class="ad-table-wrap">
         <table class="table adm-table table-sm table-hover mb-0 align-middle" id="rules-table">
           <thead>
-            <tr><th>QID</th><th>修复类型</th><th>默认风险</th><th>状态</th><th>来源</th><th>备注</th>
+            <tr><th>QID</th><th>修复类型</th><th>动作详情</th><th>默认风险</th><th>状态</th><th>来源</th><th>备注</th>
                 {% if can_write %}<th>操作</th>{% endif %}</tr>
           </thead>
           <tbody>
           {% if rules is empty %}
-            <tr><td colspan="7" class="text-center text-muted py-3">暂无规则</td></tr>
+            <tr><td colspan="8" class="text-center text-muted py-3">暂无规则</td></tr>
           {% else %}
             {% for r in rules %}
             <tr data-id="{{ r.id }}" data-qid="{{ r.qid }}" data-fix="{{ r.fix_type }}"
                 data-risk="{{ r.default_risk_level }}" data-status="{{ r.status }}"
                 data-notes="{{ r.notes|default('') }}" data-rollback="{{ r.rollback_json|default('') }}"
+                data-action="{{ r.action_json|default('') }}"
                 class="{{ r.status == 'draft' ? 'table-warning' : '' }}">
               <td>{{ r.qid }}</td>
               <td>{{ r.fix_label }}</td>
+              <td class="small" style="max-width:340px;white-space:normal">{{ r.action_summary }}</td>
               <td>{{ r.risk_label }}</td>
               <td><span class="badge {{ r.status_badge_class }}">{{ r.status_label }}</span></td>
               <td>{{ r.source|default('') }}</td>
@@ -252,6 +254,12 @@
                 </div>
               </div>
             </div>
+            <div class="mb-2"><label class="form-label small fw-bold">
+                动作模板（JSON）
+                <span class="text-muted fw-normal">— 比如 software_uninstall/software_upgrade 用 {"software":"名称","target_version":"版本"}，patch_install 用 {"kb_ids":["KB..."]}</span>
+              </label>
+              <textarea id="edit_action_template" name="action_template" class="form-control form-control-sm" rows="3"
+                placeholder='留空且下方填了注册表字段时会自动拼接（仅 registry_fix）；其它类型请直接在此填写完整 JSON'></textarea></div>
             <div class="mb-2"><label class="form-label small fw-bold">回滚方案（JSON）</label>
               <textarea id="edit_rollback" name="rollback_plan" class="form-control form-control-sm" rows="2"
                 placeholder='{"type":"software_uninstall","action":{"package_id":123}}'></textarea></div>

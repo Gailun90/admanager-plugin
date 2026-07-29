@@ -17,6 +17,8 @@ foreach ($rules as &$r) {
     $r['status_badge_class'] = $r['status'] === 'active' ? 'bg-success'
                                 : ($r['status'] === 'draft' ? 'bg-warning text-dark' : 'bg-secondary');
     $r['rollback_json']      = isset($r['rollback_plan']) ? json_encode($r['rollback_plan'], JSON_UNESCAPED_UNICODE) : '';
+    $r['action_summary']     = PluginAdmanagerVuln::actionSummary($r['fix_type'] ?? '', $r['action_template'] ?? null);
+    $r['action_json']        = isset($r['action_template']) ? json_encode($r['action_template'], JSON_UNESCAPED_UNICODE) : '';
 }
 unset($r);
 

@@ -280,6 +280,52 @@ class PluginAdmanagerVuln
         return ['low' => '低', 'medium' => '中', 'high' => '高'][$r] ?? $r;
     }
 
+    /**
+     * 把 action_template 变成一句人能看懂的摘要，不用再跳到别的页面查"卸载的到底是什么"。
+     * 覆盖当前实际出现过的几种 fix_type 数据形状；未知/新形状兜底显示 description 或原始 JSON 片段。
+     */
+    public static function actionSummary(string $fixType, $action): string {
+        if (!is_array($action) || empty($action)) {
+            return '（无动作模板）';
+        }
+        switch ($fixType) {
+            case 'software_uninstall':
+            case 'software_upgrade':
+                $sw = $action['software'] ?? $action['uninstall_target'] ?? $action['package_name'] ?? '';
+                $ver = $action['target_version'] ?? '';
+                $verb = $fixType === 'software_uninstall' ? '卸载' : '升级到';
+                return $sw !== ''
+                    ? trim("{$verb}「{$sw}」" . ($ver !== '' ? " {$ver}" : ''))
+                    : ($action['description'] ?? '（未指定目标软件）');
+
+            case 'registry_fix':
+                $changes = $action['changes'] ?? [];
+                if (!$changes) return $action['description'] ?? '（无注册表变更项）';
+                $parts = [];
+                foreach ($changes as $ch) {
+                    $act = $ch['action'] ?? 'set';
+                    $root = $ch['root'] ?? 'HKLM';
+                    $subkey = $ch['subkey'] ?? '';
+                    $name = $ch['name'] ?? '';
+                    $value = $ch['value'] ?? '';
+                    $parts[] = $act === 'delete'
+                        ? ('删除 ' . $root . '\\' . $subkey . '\\' . $name)
+                        : ($root . '\\' . $subkey . '\\' . $name . ' = ' . $value);
+                }
+                return implode('；', $parts);
+
+            case 'patch_install':
+                $kbs = $action['kb_ids'] ?? [];
+                return $kbs ? ('安装补丁：' . implode(', ', $kbs)) : ($action['description'] ?? '（未指定 KB 编号）');
+
+            case 'manual_review':
+                return '需人工处理：' . ($action['reason'] ?? $action['description'] ?? '未说明原因');
+
+            default:
+                return $action['description'] ?? ('（' . substr(json_encode($action, JSON_UNESCAPED_UNICODE), 0, 80) . '…）');
+        }
+    }
+
     public static function statusLabel(string $s): string {
         return [
             'pending'      => '待审批',

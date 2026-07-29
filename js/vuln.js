@@ -432,6 +432,7 @@
         $('#edit_status').value = tr.dataset.status;
         $('#edit_notes').value = tr.dataset.notes || '';
         $('#edit_rollback').value = tr.dataset.rollback || '';
+        $('#edit_action_template').value = tr.dataset.action || '';
         new bootstrap.Modal($('#editRuleModal')).show();
       });
     });
