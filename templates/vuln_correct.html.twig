@@ -97,8 +97,43 @@
           <option value="manual_review">人工处理</option><option value="unsupported">暂不支持</option>
           <option value="shell_exec">远程命令</option>
         </select></div>
-        <div class="mb-3"><label class="form-label fw-bold small">纠正动作 JSON</label>
-          <textarea id="correct_action" class="form-control font-monospace small" rows="10"></textarea></div>
+
+        <div id="correct_action_fields">
+          {# 注册表修复 #}
+          <div class="fix-group" id="grp-registry">
+            <label class="form-label small fw-bold mb-1">注册表变更项 <span class="text-danger">*</span></label>
+            <div id="registry-ops"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="add-reg-op"><i class="ti ti-plus me-1"></i>添加一项</button>
+            <div class="form-check mt-2"><input type="checkbox" class="form-check-input" id="reg_requires_reboot"><label class="form-check-label small" for="reg_requires_reboot">需要重启</label></div>
+          </div>
+          {# 软件升级 / 卸载 #}
+          <div class="fix-group" id="grp-software">
+            <label class="form-label small fw-bold mb-1">软件名称 <span class="text-danger">*</span></label>
+            <input list="pkg-datalist" id="sw_software" class="form-control form-control-sm" placeholder="如 Chrome / 360 安全浏览器">
+            <label class="form-label small fw-bold d-block mt-2 mb-1">目标版本（升级可选）</label>
+            <input id="sw_version" class="form-control form-control-sm" placeholder="如 120.0.0.1">
+          </div>
+          {# 补丁安装 #}
+          <div class="fix-group" id="grp-patch">
+            <label class="form-label small fw-bold mb-1">KB 补丁编号 <span class="text-danger">*</span></label>
+            <input id="patch_kb" class="form-control form-control-sm" placeholder="多个用逗号分隔，如 KB5000802, KB5000808">
+          </div>
+          {# 远程命令 #}
+          <div class="fix-group" id="grp-shell">
+            <label class="form-label small fw-bold mb-1">命令 <span class="text-danger">*</span></label>
+            <textarea id="shell_command" class="form-control form-control-sm font-monospace" rows="4" placeholder="要执行的命令（会做危险关键词扫描）"></textarea>
+          </div>
+          {# 无需参数 #}
+          <div class="fix-group" id="grp-none">
+            <div class="text-muted small">该类型无需结构化参数，可填写下方描述。</div>
+          </div>
+        </div>
+        <datalist id="pkg-datalist"></datalist>
+
+        <div class="mb-3"><label class="form-label fw-bold small">描述（可选）</label>
+          <input type="text" id="correct_desc" class="form-control form-control-sm" placeholder="给人看的动作说明"></div>
+        <div class="mb-3"><label class="form-label small text-muted">动作预览（自动拼装，提交即按此 JSON 下发）</label>
+          <pre id="correct_preview" class="small p-2 rounded bg-light" style="max-height:180px;overflow:auto">{}</pre></div>
         <div class="mb-3"><label class="form-label fw-bold small">备注</label>
           <input type="text" id="correct_note" class="form-control form-control-sm"></div>
         <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="correct_promote"><label class="form-check-label small" for="correct_promote">沉淀为正式规则</label></div>
@@ -162,29 +197,165 @@ var showMsg = function(msg, type) {
 var showModal = function(id) { bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show(); };
 var hideModal = function(id) { var m = bootstrap.Modal.getInstance(document.getElementById(id)); if(m) m.hide(); };
 
-// ── 手动纠正 ──
+// ── 手动纠正：结构化动作表单（按修复类型联动）──
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+var CORRECT_FIX_GROUPS = {
+  registry_fix: 'grp-registry',
+  software_upgrade: 'grp-software',
+  software_uninstall: 'grp-software',
+  patch_install: 'grp-patch',
+  shell_exec: 'grp-shell',
+  manual_review: 'grp-none',
+  unsupported: 'grp-none'
+};
+var REG_OP_TPL = ''
+  + '<div class="cmb-reg-op row g-1 mb-1 align-items-center" data-op>'
+  + '  <div class="col-2"><select class="form-select form-select-sm op-action"><option value="set" selected>设置</option><option value="delete">删除</option></select></div>'
+  + '  <div class="col-2"><select class="form-select form-select-sm op-root"><option>HKLM</option><option>HKCU</option><option>HKCR</option><option>HKU</option><option>HKCC</option></select></div>'
+  + '  <div class="col-3"><input class="form-control form-control-sm op-subkey" placeholder="子键路径"></div>'
+  + '  <div class="col-2"><input class="form-control form-control-sm op-name" placeholder="值名称"></div>'
+  + '  <div class="col-2 op-type-col"><select class="form-select form-select-sm op-type"><option>REG_SZ</option><option>REG_DWORD</option><option>REG_QWORD</option><option>REG_BINARY</option><option>REG_MULTI_SZ</option><option>REG_EXPAND_SZ</option></select></div>'
+  + '  <div class="col-2 op-val-col"><input class="form-control form-control-sm op-value" placeholder="值数据"></div>'
+  + '  <div class="col-auto"><button type="button" class="btn btn-sm btn-outline-danger op-del" title="删除此项"><i class="ti ti-x"></i></button></div>'
+  + '</div>';
+
+function addRegistryOp(data) {
+  data = data || {};
+  var box = document.getElementById('registry-ops');
+  var tmp = document.createElement('div'); tmp.innerHTML = REG_OP_TPL.trim();
+  var row = tmp.firstChild;
+  row.querySelector('.op-action').value = data.action || 'set';
+  row.querySelector('.op-root').value = data.root || 'HKLM';
+  row.querySelector('.op-subkey').value = data.subkey || '';
+  row.querySelector('.op-name').value = data.name || '';
+  row.querySelector('.op-type').value = data.type || 'REG_SZ';
+  row.querySelector('.op-value').value = (data.value !== undefined ? data.value : '');
+  box.appendChild(row);
+  syncRegOpCols(row);
+}
+function syncRegOpCols(row) {
+  var isSet = row.querySelector('.op-action').value === 'set';
+  row.querySelector('.op-type-col').style.display = isSet ? '' : 'none';
+  row.querySelector('.op-val-col').style.display = isSet ? '' : 'none';
+}
+function showCorrectGroup(fixType) {
+  var gid = CORRECT_FIX_GROUPS[fixType] || 'grp-none';
+  document.querySelectorAll('#correct_action_fields .fix-group').forEach(function(g){
+    g.style.display = (g.id === gid) ? '' : 'none';
+  });
+}
+function populateCorrectAction(fixType, act) {
+  act = act || {};
+  document.getElementById('registry-ops').innerHTML = '';
+  document.getElementById('sw_software').value = '';
+  document.getElementById('sw_version').value = '';
+  document.getElementById('patch_kb').value = '';
+  document.getElementById('shell_command').value = '';
+  document.getElementById('reg_requires_reboot').checked = !!act.requires_reboot;
+  document.getElementById('correct_desc').value = act.description || '';
+  if (fixType === 'registry_fix') {
+    var changes = act.changes || [];
+    if (changes.length) { changes.forEach(addRegistryOp); }
+    else if (act.registry_path) {
+      addRegistryOp({ action:'set', root:(act.registry_path.split('\\')[0]||'HKLM'), subkey: act.registry_path.replace(/^[^\\]*\\/,''), name: act.value_name||'', value: act.value_data||'', type: act.value_type||'REG_SZ' });
+    } else { addRegistryOp({}); }
+  } else if (fixType === 'software_upgrade' || fixType === 'software_uninstall') {
+    document.getElementById('sw_software').value = act.software || act.uninstall_target || act.package_name || '';
+    document.getElementById('sw_version').value = act.target_version || '';
+  } else if (fixType === 'patch_install') {
+    document.getElementById('patch_kb').value = (act.kb_ids||[]).join(', ');
+  } else if (fixType === 'shell_exec') {
+    document.getElementById('shell_command').value = act.command || '';
+  }
+  showCorrectGroup(fixType);
+  updateCorrectPreview();
+}
+function buildCorrectAction() {
+  var fixType = document.getElementById('correct_fix_type').value;
+  var a = {};
+  var desc = document.getElementById('correct_desc').value.trim();
+  if (desc) a.description = desc;
+  if (fixType === 'registry_fix') {
+    var changes = [];
+    document.querySelectorAll('#registry-ops [data-op]').forEach(function(row){
+      var action = row.querySelector('.op-action').value;
+      var item = { action: action, root: row.querySelector('.op-root').value, subkey: row.querySelector('.op-subkey').value.trim(), name: row.querySelector('.op-name').value.trim() };
+      if (action === 'set') { item.type = row.querySelector('.op-type').value; item.value = row.querySelector('.op-value').value; }
+      changes.push(item);
+    });
+    a.changes = changes;
+    if (document.getElementById('reg_requires_reboot').checked) a.requires_reboot = true;
+  } else if (fixType === 'software_upgrade' || fixType === 'software_uninstall') {
+    a.software = document.getElementById('sw_software').value.trim();
+    var v = document.getElementById('sw_version').value.trim();
+    if (v) a.target_version = v;
+  } else if (fixType === 'patch_install') {
+    a.kb_ids = document.getElementById('patch_kb').value.split(/[,，\s]+/).map(function(s){return s.trim();}).filter(Boolean);
+  } else if (fixType === 'shell_exec') {
+    a.command = document.getElementById('shell_command').value;
+  }
+  return a;
+}
+function updateCorrectPreview() {
+  document.getElementById('correct_preview').textContent = JSON.stringify(buildCorrectAction(), null, 2);
+}
+
+// 软件名下拉建议（来自软件部署库）
+fetch('/plugins/admanager/ajax/vuln_data.php?action=packages').then(function(r){return r.json();}).then(function(list){
+  if (!Array.isArray(list)) return;
+  var dl = document.getElementById('pkg-datalist');
+  if (!dl) return;
+  dl.innerHTML = list.map(function(p){ return '<option value="'+esc(p.name)+'">'+esc((p.name||'')+' '+(p.version||''))+'</option>'; }).join('');
+}).catch(function(){});
+
 document.querySelectorAll('.correct-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
     document.getElementById('correct_task_id').value = btn.dataset.id;
     document.getElementById('correct_qid_badge').textContent = 'QID: ' + btn.dataset.qid;
     document.getElementById('correct_title').textContent = btn.dataset.title;
-    document.getElementById('correct_fix_type').value = btn.dataset.fixType;
-    var act = btn.dataset.action;
-    try { act = JSON.stringify(JSON.parse(act), null, 2); } catch(e) {}
-    document.getElementById('correct_action').value = act;
+    var ft = btn.dataset.fixType;
+    document.getElementById('correct_fix_type').value = ft;
+    var act = {};
+    try { act = JSON.parse(btn.dataset.action); } catch(e) { act = {}; }
     document.getElementById('correct_note').value = '';
     document.getElementById('correct_promote').checked = false;
+    populateCorrectAction(ft, act);
     showModal('correctModal');
   });
 });
 
+document.getElementById('correct_fix_type').addEventListener('change', function(){ showCorrectGroup(this.value); updateCorrectPreview(); });
+document.getElementById('add-reg-op').addEventListener('click', function(){ addRegistryOp({}); updateCorrectPreview(); });
+document.getElementById('registry-ops').addEventListener('click', function(e){
+  if (e.target.closest('.op-del')) { e.target.closest('[data-op]').remove(); updateCorrectPreview(); }
+});
+document.getElementById('registry-ops').addEventListener('change', function(e){
+  if (e.target.closest('.op-action')) { syncRegOpCols(e.target.closest('[data-op]')); updateCorrectPreview(); }
+});
+document.getElementById('correct_action_fields').addEventListener('input', updateCorrectPreview);
+document.getElementById('correct_desc').addEventListener('input', updateCorrectPreview);
+
 document.getElementById('correct_submit').addEventListener('click', function() {
-  var btn = this; btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  var btn = this;
+  var ft = document.getElementById('correct_fix_type').value;
+  var act = buildCorrectAction();
+  if (ft === 'registry_fix' && (!act.changes || !act.changes.length || act.changes.some(function(c){ return !c.subkey; }))) {
+    showMsg('注册表变更项需至少一项，且子键路径不能为空', 'danger'); return;
+  }
+  if ((ft === 'software_upgrade' || ft === 'software_uninstall') && !act.software) {
+    showMsg('请填写软件名称', 'danger'); return;
+  }
+  if (ft === 'patch_install' && (!act.kb_ids || !act.kb_ids.length)) {
+    showMsg('请填写至少一个 KB 编号', 'danger'); return;
+  }
+  if (ft === 'shell_exec' && !act.command.trim()) {
+    showMsg('请填写命令', 'danger'); return;
+  }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
   ajax('correct_task', {
     task_id: document.getElementById('correct_task_id').value,
-    fix_type: document.getElementById('correct_fix_type').value,
-    corrected_action: document.getElementById('correct_action').value,
+    fix_type: ft,
+    corrected_action: JSON.stringify(act),
     note: document.getElementById('correct_note').value,
     promote_to_rule: document.getElementById('correct_promote').checked ? '1' : '0'
   }, function(res) {
@@ -293,5 +464,7 @@ document.getElementById('aiChatModal').addEventListener('hidden.bs.modal', funct
 document.getElementById('correctModal').addEventListener('hidden.bs.modal', function() {
   document.getElementById('correct_note').value = '';
   document.getElementById('correct_promote').checked = false;
+  document.getElementById('correct_desc').value = '';
+  document.getElementById('registry-ops').innerHTML = '';
 });
 </script>

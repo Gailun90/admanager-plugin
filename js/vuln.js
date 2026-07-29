@@ -200,13 +200,21 @@
   function initTasksPage() {
     if (!$('#tasks-table')) return;
 
-    function onTaskAct(e) {
-      const btn = e.currentTarget;
+    function onTaskAct(btn) {
       const tr = btn.closest('tr');
       const id = tr.dataset.id;
-      const action = btn.dataset.action; // approve|reject|mark_manual|dispatch|rematch
+      const action = btn.dataset.action; // approve|reject|mark_manual|dispatch|rematch|delete_task
       if (action === 'dispatch' && !confirm(`确认将任务 #${id} 下发到客户端执行？`)) return;
       if (action === 'rematch' && !confirm(`确认对任务 #${id} 重新匹配软件安装包？`)) return;
+      if (action === 'delete_task') {
+        if (!confirm(`确认删除任务 #${id}？删除后不可恢复（用于清理重复任务）。`)) return;
+        btn.disabled = true;
+        post({ action, task_id: id }).then(r => {
+          if (r && r.ok) { tr.remove(); toast(r.message); }
+          else { btn.disabled = false; toast((r && r.message) || '删除失败', false); }
+        }).catch(() => { btn.disabled = false; toast('网络错误', false); });
+        return;
+      }
       post({ action, task_id: id }).then(r => {
         if (r && r.ok) {
           if (action === 'rematch') {
@@ -237,7 +245,6 @@
       btn.dataset.action = 'dispatch';
       btn.title = '确认下发执行';
       btn.innerHTML = '<i class="ti ti-send"></i>';
-      btn.addEventListener('click', onTaskAct);
       return btn;
     }
 
@@ -246,8 +253,7 @@
       btn.className = 'btn btn-xs btn-warning task-act';
       btn.dataset.action = 'rematch';
       btn.title = '重新匹配软件安装包';
-      btn.innerHTML = '<i class="ti ti-refresh"></i> 重新匹配';
-      btn.addEventListener('click', onTaskAct);
+      btn.innerHTML = '<i class="ti ti-refresh"></i>';
       return btn;
     }
 
@@ -258,6 +264,7 @@
       $$('.task-act', tr).forEach(b => b.remove());
       $('.rematch-warn', tr)?.remove();
       $('.block-reason', tr)?.remove();
+      $('.task-manual-match', tr)?.remove();
 
       if (!EXEC_FIX_TYPES.includes(task.fix_type)) {
         // 非可执行类型 → 展示原因
@@ -269,13 +276,9 @@
         }
         return;
       }
-      // 软件升级未匹配到安装包：展示「重新匹配」+ 提示
+      // 软件升级未匹配到安装包：展示「重新匹配」入口（不再提示跳转文案）
       if (task.fix_type === 'software_upgrade' && !task.matched_package_id) {
         cell.appendChild(makeRematchBtn());
-        const w = document.createElement('div');
-        w.className = 'rematch-warn small text-warning mt-1';
-        w.innerHTML = '未匹配安装包 · <a href="/plugins/admanager/front/deploy.php" target="_blank" class="link-warning">去软件部署库看看</a>';
-        cell.appendChild(w);
         return;
       }
       // 门禁拦下（有 blockReason）→ 展示原因，但仍给出人工确认下发的入口
@@ -298,7 +301,15 @@
       if (st === 'approved') renderApprovedActions(tr, task, task.dispatch_block_reason || '');
     }
 
-    $$('.task-act').forEach(btn => btn.addEventListener('click', onTaskAct));
+    // 事件委托：覆盖静态按钮 + 动态生成按钮（重新匹配/确认下发）+ 删除按钮
+    const tasksTable = $('#tasks-table');
+    if (tasksTable) {
+      tasksTable.addEventListener('click', function (e) {
+        const btn = e.target.closest('.task-act, .task-delete');
+        if (!btn || !tasksTable.contains(btn)) return;
+        onTaskAct(btn);
+      });
+    }
 
     const batchBtn = $('#batch-approve');
     if (batchBtn) {
@@ -332,6 +343,151 @@
             toast(r.message || `已批准 ${ids.length} 个任务`);
           } else toast((r && r.message) || '批量批准失败', false);
         }).catch(() => toast('网络错误', false));
+      });
+    }
+
+    // ── 轻量可输入下拉（combobox）：保留原生 select.value 语义，叠加输入过滤 ──
+    function makeCombobox(select) {
+      if (!select || select._cmb) return select._cmb;
+      select.style.display = 'none';
+      var wrap = document.createElement('div'); wrap.className = 'cmb';
+      var input = document.createElement('input');
+      input.type = 'text'; input.autocomplete = 'off';
+      input.className = 'form-control form-control-sm cmb-input';
+      input.placeholder = '输入关键字搜索…';
+      var list = document.createElement('div'); list.className = 'cmb-list'; list.style.display = 'none';
+      wrap.appendChild(input); wrap.appendChild(list);
+      select.parentNode.insertBefore(wrap, select);
+      var api = {
+        input: input, list: list,
+        sync: function () {
+          var v = select.value, txt = '';
+          for (var i = 0; i < select.options.length; i++) {
+            if (select.options[i].value === v) { txt = select.options[i].text; break; }
+          }
+          if (!txt) txt = input.value; // 加载中等无匹配时保留已输入文本
+          input.value = txt;
+        },
+        render: function () {
+          var q = (input.value || '').trim().toLowerCase(), html = '', n = 0;
+          for (var i = 0; i < select.options.length; i++) {
+            var o = select.options[i];
+            if (!o.value) continue;
+            if (q && o.text.toLowerCase().indexOf(q) < 0) continue;
+            html += '<div class="cmb-opt" data-val="' + esc(o.value) + '">' + esc(o.text) + '</div>';
+            if (++n > 300) break;
+          }
+          list.innerHTML = html || '<div class="cmb-empty">无匹配</div>';
+        }
+      };
+      input.addEventListener('focus', function () { api.render(); list.style.display = 'block'; });
+      input.addEventListener('input', function () { api.render(); list.style.display = 'block'; });
+      list.addEventListener('mousedown', function (e) {
+        var t = e.target.closest('.cmb-opt'); if (!t) return;
+        e.preventDefault();
+        select.value = t.getAttribute('data-val');
+        select.dispatchEvent(new Event('change'));
+        input.value = t.textContent;
+        list.style.display = 'none';
+      });
+      document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) list.style.display = 'none'; });
+      select._cmb = api;
+      return api;
+    }
+
+    // ── 人工匹配安装包 + 匹配后自动下发 ──
+    let manualMatchTaskId = null;
+    let manualMatchTaskAsset = '';
+    const manualModalEl = $('#manualMatchModal');
+    const manualSel = $('#manualMatchPackageSelect');
+    const manualAssetSel = $('#manualMatchAssetSelect');
+    const manualConfirm = $('#manualMatchConfirm');
+    const manualPkgCmb = makeCombobox(manualSel);
+    const manualAssetCmb = makeCombobox(manualAssetSel);
+
+    function refreshManualConfirm() {
+      manualConfirm.disabled = !(manualSel.value && manualAssetSel.value);
+    }
+
+    // 用户选择安装包 / 目标计算机时实时刷新「确认匹配」可用状态（否则只在列表加载时判断一次，选了也不生效）
+    manualSel.addEventListener('change', refreshManualConfirm);
+    manualAssetSel.addEventListener('change', refreshManualConfirm);
+
+    if (manualModalEl && manualSel && manualAssetSel && manualConfirm) {
+      $$('.task-manual-match').forEach(btn => {
+        btn.addEventListener('click', function () {
+          manualMatchTaskId = this.getAttribute('data-task-id');
+          manualMatchTaskAsset = this.getAttribute('data-asset-id') || '';
+          manualSel.innerHTML = '<option value="">加载中…</option>';
+          manualAssetSel.innerHTML = '<option value="">加载中…</option>';
+          manualConfirm.disabled = true;
+          bootstrap.Modal.getOrCreateInstance(manualModalEl).show();
+          // 并行加载安装包与客户端列表
+          get({ action: 'packages' }).then(data => {
+            if (!Array.isArray(data) || data.length === 0) {
+              manualSel.innerHTML = '<option value="">软件部署库暂无安装包</option>';
+              return;
+            }
+            manualSel.innerHTML = '<option value="">— 选择安装包 —</option>' +
+              data.map(p => `<option value="${p.id}">${esc(p.name)} ${esc(p.version || '')} (#${p.id})</option>`).join('');
+            manualPkgCmb.sync();
+            refreshManualConfirm();
+          }).catch(() => { manualSel.innerHTML = '<option value="">加载失败</option>'; });
+          get({ action: 'clients' }).then(clients => {
+            const list = Array.isArray(clients) ? clients : [];
+            let opts = '';
+            // 当前资产即便不在列表中也保留，避免已关联任务被清空
+            if (manualMatchTaskAsset && !list.some(c => String(c.id) === String(manualMatchTaskAsset))) {
+              opts += `<option value="${manualMatchTaskAsset}">当前计算机 (#${manualMatchTaskAsset})</option>`;
+            }
+            opts += list.map(c => `<option value="${c.id}">${esc(c.hostname || c.name || c.id)} (#${c.id})</option>`).join('');
+            manualAssetSel.innerHTML = opts
+              ? '<option value="">— 选择目标计算机 —</option>' + opts
+              : '<option value="">暂无可用客户端</option>';
+            manualAssetSel.value = manualMatchTaskAsset || '';
+            manualAssetCmb.sync();
+            refreshManualConfirm();
+          }).catch(() => { manualAssetSel.innerHTML = '<option value="">加载失败</option>'; });
+        });
+      });
+      manualConfirm.addEventListener('click', function () {
+        const pkgId = manualSel.value;
+        const assetId = manualAssetSel.value;
+        if (!pkgId || !assetId || !manualMatchTaskId) {
+          toast('请先选择安装包与目标计算机', false);
+          return;
+        }
+        const taskId = manualMatchTaskId;
+        this.disabled = true;
+        post({ action: 'manual_match', task_id: taskId, package_id: pkgId, asset_id: assetId }).then(r => {
+          if (!r || !r.ok) {
+            this.disabled = false;
+            toast((r && r.message) || '人工匹配失败', false);
+            return;
+          }
+          const matchedId = (r.task && r.task.matched_package_id) || Number(pkgId);
+          // 匹配成功 → 自动尝试下发（此时资产已写入，门禁应通过）
+          post({ action: 'dispatch', task_id: taskId }).then(d => {
+            const tr = document.querySelector(`tr[data-id="${taskId}"]`);
+            bootstrap.Modal.getOrCreateInstance(manualModalEl).hide();
+            if (d && d.ok) {
+              // 清理残留的匹配类按钮，避免与「已下发」状态并存
+              $$('.task-act', tr).forEach(b => b.remove());
+              $('.task-manual-match', tr)?.remove();
+              $('.rematch-warn', tr)?.remove();
+              if (tr) rowAfterAction(tr, d.task || { status: 'dispatched' });
+              toast('已匹配安装包并下发执行');
+            } else {
+              const reason = ((d && d.task && d.task.dispatch_block_reason) || (d && d.message) || '未自动下发，请手动确认下发');
+              if (tr) renderApprovedActions(tr, { fix_type: 'software_upgrade', matched_package_id: matchedId, asset_id: Number(assetId) }, reason);
+              toast('已匹配安装包，但未自动下发：' + reason, false);
+            }
+          }).catch(() => {
+            this.disabled = false;
+            bootstrap.Modal.getOrCreateInstance(manualModalEl).hide();
+            toast('下发请求失败', false);
+          });
+        }).catch(() => { this.disabled = false; toast('人工匹配请求失败', false); });
       });
     }
 

@@ -1,5 +1,20 @@
 <div class="adm-page">
   <input type="hidden" id="vuln-csrf" value="{{ csrf_token }}">
+  <style>
+    #tasks-table .op-cell { vertical-align: middle; }
+    #tasks-table .op-cell .btn { flex: 0 0 auto; }
+    #tasks-table .summary-cell { max-width: 190px; }
+    /* 人工匹配弹窗：可输入过滤的下拉 */
+    #manualMatchModal .cmb { position: relative; }
+    #manualMatchModal .cmb-list {
+      position: absolute; z-index: 1060; left: 0; right: 0; top: 100%; margin-top: 2px;
+      max-height: 240px; overflow: auto; background: #fff; border: 1px solid #ced4da;
+      border-radius: .375rem; box-shadow: 0 .25rem .75rem rgba(0,0,0,.12);
+    }
+    #manualMatchModal .cmb-opt { padding: .35rem .6rem; cursor: pointer; font-size: .875rem; }
+    #manualMatchModal .cmb-opt:hover { background: #e9ecef; }
+    #manualMatchModal .cmb-empty { padding: .5rem .6rem; color: #888; font-size: .85rem; }
+  </style>
 
   {# GLPI 左侧菜单不支持二级子菜单，故三个漏洞修复子页用内容区页签互相跳转 #}
   <ul class="nav nav-tabs mb-3" id="vuln-subtabs">
@@ -77,6 +92,20 @@
     <div class="card-body p-0">
       <div class="ad-table-wrap">
         <table class="table adm-table table-sm table-hover mb-0 align-middle" id="tasks-table">
+          <colgroup>
+            <col style="width:34px">
+            <col style="width:46px">
+            <col style="width:64px">
+            <col style="width:170px">
+            <col style="width:100px">
+            <col style="width:118px">
+            <col style="width:108px">
+            <col style="width:84px">
+            <col style="width:62px">
+            <col style="width:190px">
+            <col style="width:74px">
+            <col style="width:196px">
+          </colgroup>
           <thead>
             <tr>
               <th><input type="checkbox" id="check-all"></th>
@@ -104,12 +133,11 @@
               <td>{{ t.asset_hostname|default('—') }}</td>
               <td>{{ t.fix_label }}</td>
               <td><span class="badge {{ t.risk_badge_class }}">{{ t.risk_label }}</span></td>
-              <td class="small">{{ t.action_summary|default('')|slice(0,80) }}</td>
+              <td class="small summary-cell" title="{{ t.action_summary|default('')|e('html_attr') }}" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.action_summary|default('')|slice(0,70) }}</td>
               <td class="cell-status"><span class="badge {{ t.status_badge_class }}">{{ t.status_label }}</span></td>
-              <td class="text-nowrap">
-                <button class="btn btn-xs btn-outline-info btn-detail" data-id="{{ t.id }}">
-                  <i class="ti ti-eye"></i>
-                </button>
+              <td class="op-cell">
+                <div class="d-flex flex-wrap gap-1 align-items-center justify-content-start">
+                <button class="btn btn-xs btn-outline-info btn-detail" data-id="{{ t.id }}" title="查看详情"><i class="ti ti-eye"></i></button>
                 {% if t.status == 'pending' and can_write %}
                   <button class="btn btn-xs btn-success task-act" data-action="approve" title="批准"><i class="ti ti-check"></i></button>
                   <button class="btn btn-xs btn-danger task-act" data-action="reject" title="拒绝"><i class="ti ti-x"></i></button>
@@ -118,13 +146,17 @@
                 {% if t.status == 'approved' and can_write %}
                   {% if t.fix_type in ['registry_fix', 'software_uninstall', 'software_upgrade', 'patch_install'] %}
                     {% if t.fix_type == 'software_upgrade' and t.matched_package_id is null %}
-                      <button class="btn btn-xs btn-warning task-act" data-action="rematch" title="重新匹配软件安装包"><i class="ti ti-refresh"></i> 重新匹配</button>
-                      <div class="rematch-warn small text-warning mt-1">未匹配安装包 · <a href="/plugins/admanager/front/deploy_package.php" target="_blank" class="link-warning">去软件部署库看看</a></div>
+                      <button class="btn btn-xs btn-warning task-act" data-action="rematch" title="重新匹配软件安装包"><i class="ti ti-refresh"></i></button>
+                      <button class="btn btn-xs btn-outline-warning task-manual-match" data-task-id="{{ t.id }}" data-asset-id="{{ t.asset_id ?? '' }}" title="人工匹配安装包"><i class="ti ti-target"></i></button>
                     {% else %}
                       <button class="btn btn-xs btn-primary task-act" data-action="dispatch" title="确认下发执行"><i class="ti ti-send"></i></button>
                     {% endif %}
                   {% endif %}
                 {% endif %}
+                {% if can_write and t.status not in ['dispatched','done','pending_verify','rollback_required'] %}
+                  <button class="btn btn-xs btn-outline-danger task-delete" data-action="delete_task" title="删除任务（用于清理重复任务）"><i class="ti ti-trash"></i></button>
+                {% endif %}
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -146,6 +178,36 @@
     </div>
   </div>
 
+  {# == 人工匹配安装包弹窗 == #}
+  <div class="modal fade" id="manualMatchModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header py-2"><h5 class="modal-title">人工匹配安装包与目标计算机</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small mb-1">目标计算机 <span class="text-danger">*</span></label>
+            <select id="manualMatchAssetSelect" class="form-select">
+              <option value="">加载中…</option>
+            </select>
+            <div class="form-text small">任务未关联资产时必选；已关联则自动带出，可改。可输入关键字过滤。</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">匹配安装包 <span class="text-danger">*</span></label>
+            <select id="manualMatchPackageSelect" class="form-select">
+              <option value="">加载中…</option>
+            </select>
+            <div class="form-text small">可输入关键字过滤安装包。</div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" id="manualMatchConfirm" class="btn btn-sm btn-primary" disabled>确认匹配</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/plugins/admanager/js/vuln.js"></script>
 </div>
 
@@ -154,4 +216,6 @@
   document.getElementById('check-all')?.addEventListener('change', function() {
     document.querySelectorAll('.task-check').forEach(c => c.checked = this.checked);
   });
+
+
 </script>

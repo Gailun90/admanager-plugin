@@ -160,6 +160,7 @@
         <h5 class="modal-title" id="taskDetailTitle">任务明细</h5>
         <div class="ms-auto d-flex gap-2 align-items-center">
           <span id="taskDetailSummary" class="small text-muted"></span>
+          <button class="btn btn-sm btn-outline-secondary ms-2" id="taskScriptBtn" style="display:none"><i class="ti ti-code me-1"></i>查看脚本</button>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
       </div>
@@ -177,7 +178,8 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
     e.preventDefault();
     var id   = btn.dataset.id;
     var name = btn.dataset.name;
-    document.getElementById('taskDetailTitle').textContent = '任务明细：' + name;
+    var sBtn=document.getElementById('taskScriptBtn');if(sBtn){sBtn.dataset.taskId=id;sBtn.style.display='';}
+        document.getElementById('taskDetailTitle').textContent = '任务明细：' + name;
     document.getElementById('taskDetailBody').innerHTML = '<div class="text-center py-4 text-muted">加载中...</div>';
     new bootstrap.Modal(document.getElementById('taskDetailModal')).show();
 
@@ -226,6 +228,7 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
         });
         html += '</tbody></table></div>';
         document.getElementById('taskDetailBody').innerHTML = html;
+        window.__detailTargetsHtml = html;   // 缓存明细 HTML，供「查看脚本」返回
         setTimeout(function() {
           document.querySelectorAll('.log-btn').forEach(function(b) {
             b.onclick = function() {
@@ -243,6 +246,28 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
         document.getElementById('taskDetailBody').innerHTML = '<div class="alert alert-danger m-3">加载失败，请稍后重试</div>';
       });
   });
+  var sb=document.getElementById('taskScriptBtn');
+  if(sb){sb.addEventListener('click',function(){
+    var tid=this.dataset.taskId;if(!tid)return;
+    var body=document.getElementById('taskDetailBody');
+    if(!body)return;
+    body.innerHTML='<div class="text-center py-4 text-muted">加载脚本中…</div>';
+    fetch('/plugins/admanager/ajax/deploy_data.php?action=script&task_id='+tid,{headers:{Accept:'application/json'}})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      var e=function(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
+      var b='<div class="mb-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="backToDetailBtn"><i class="ti ti-arrow-left me-1"></i>返回明细</button></div>';
+      b+='<table class="table table-sm table-bordered mb-3"><tr><td class="table-light" style="width:100px">名称</td><td>'+e(d.name)+'</td></tr><tr><td class="table-light">类型</td><td>'+e(d.task_type)+' / '+e(d.interpreter)+' / '+e(d.run_as)+' / '+(d.need_reboot?'需重启':'否')+'</td></tr><tr><td class="table-light">创建</td><td>'+(d.created_at?d.created_at.substring(0,19).replace('T',' '):'-')+'</td></tr></table>';
+      if(d.uninstall_target)b+='<h6>卸载目标</h6><pre class="mb-3 p-2 bg-light rounded small">'+e(d.uninstall_target)+'</pre>';
+      if(d.registry_ops)b+='<h6>注册表操作</h6><pre class="mb-3 p-2 bg-light rounded small" style="max-height:300px;overflow:auto">'+e(JSON.stringify(d.registry_ops,null,2))+'</pre>';
+      if(d.command)b+='<h6>执行脚本</h6><pre class="p-3 rounded" style="max-height:500px;overflow:auto;font-size:.75rem;background:#1e1e1e;color:#d4d4d4;white-space:pre-wrap;word-break:break-all">'+e(d.command)+'</pre>';
+      body.innerHTML=b;
+      var back=document.getElementById('backToDetailBtn');
+      if(back){back.addEventListener('click',function(){
+        body.innerHTML=window.__detailTargetsHtml||'<div class="text-center py-4 text-muted">暂无明细</div>';
+      });}
+    }).catch(function(err){body.innerHTML='<div class="alert alert-danger m-3">脚本加载失败：'+((err&&err.message)?err.message:'未知错误')+'</div>';});
+  });}
 });
 </script>
 

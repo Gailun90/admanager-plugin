@@ -203,6 +203,48 @@ class PluginAdmanagerVuln
         }
     }
 
+    /** 人工指定安装包匹配（software_upgrade 专用，对应后端 /api/vuln/tasks/{id}/rematch-package 带 package_id） */
+    public static function manualMatchPackage(int $taskId, int $packageId, ?int $assetId = null): array {
+        try {
+            $payload = ['operator' => self::operator(), 'package_id' => $packageId];
+            if ($assetId !== null) {
+                $payload['asset_id'] = $assetId;
+            }
+            $data = PluginAdmanagerFastApiClient::getInstance()->post(
+                "/api/vuln/tasks/{$taskId}/rematch-package",
+                $payload
+            );
+            PluginAdmanagerAuditLog::write('vuln_manual_match', 'vuln',
+                (string)$taskId, '', ['task_id' => $taskId, 'package_id' => $packageId], true, '');
+            $matched = !empty($data['matched_package_id']);
+            $msg = $matched
+                ? "任务 #{$taskId} 已人工匹配到安装包 #{$data['matched_package_id']}，可点「确认下发」执行升级"
+                : "任务 #{$taskId} 人工匹配失败（指定的安装包不存在）";
+            return ['ok' => true, 'message' => $msg, 'task' => $data];
+        } catch (Exception $e) {
+            return ['ok' => false, 'message' => '人工匹配失败：' . $e->getMessage()];
+        }
+    }
+
+    /** 删除修复任务（清理重复/无效任务用） */
+    public static function deleteTask(int $taskId): array {
+        try {
+            $data = PluginAdmanagerFastApiClient::getInstance()->delete("/api/vuln/tasks/{$taskId}");
+            PluginAdmanagerAuditLog::write('vuln_task_delete', 'vuln',
+                (string)$taskId, '', [], true, '');
+            return ['ok' => true, 'message' => $data['message'] ?? "任务 #{$taskId} 已删除"];
+        } catch (Exception $e) {
+            return ['ok' => false, 'message' => '删除失败：' . $e->getMessage()];
+        }
+    }
+
+    /** 拉取软件部署库安装包列表（人工匹配下拉用） */
+    public static function getPackages(): array {
+        try {
+            return PluginAdmanagerFastApiClient::getInstance()->get('/api/packages') ?: [];
+        } catch (Exception $e) { return []; }
+    }
+
     // ── 规则库 ────────────────────────────────────────────────────────────
 
     public static function getRules(string $status = ''): array {

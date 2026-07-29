@@ -68,7 +68,7 @@ $act = $_GET['action'] ?? ($_POST['action'] ?? '');
 // 变更类操作清单（审核/规则维护，与“查看”权限分离）
 $WRITE_ACTIONS = ['approve', 'reject', 'mark_manual', 'dispatch', 'batch_approve',
                   'resolve_match', 'create_rule', 'update_rule', 'delete_rule', 'reparse_import',
-                  'rematch_package', 'kill_switch_toggle'];
+                  'rematch', 'rematch_package', 'manual_match', 'delete_task', 'kill_switch_toggle'];
 
 if (in_array($act, $WRITE_ACTIONS, true)) {
     // 权限对齐 deploy 模块：变更需 plugin_admanager_deploy 或 plugin_admanager_admin，
@@ -87,6 +87,10 @@ if (in_array($act, $WRITE_ACTIONS, true)) {
 
 switch ($act) {
     // ── 查询 ──
+    case 'packages':
+        admanager_send(PluginAdmanagerFastApiClient::getInstance()->get('/api/packages'));
+        break;
+
     case 'imports':
         admanager_send(PluginAdmanagerVuln::getImports());
         break;
@@ -162,9 +166,22 @@ switch ($act) {
         admanager_send(PluginAdmanagerVuln::reparseImport($id));
         break;
 
+    case 'rematch':
     case 'rematch_package':
         $id = (int)($_POST['task_id'] ?? 0);
         admanager_send(PluginAdmanagerVuln::rematchPackage($id));
+        break;
+
+    case 'manual_match':
+        $id = (int)($_POST['task_id'] ?? 0);
+        $pkgId = (int)($_POST['package_id'] ?? 0);
+        $assetId = (isset($_POST['asset_id']) && $_POST['asset_id'] !== '') ? (int)$_POST['asset_id'] : null;
+        admanager_send(PluginAdmanagerVuln::manualMatchPackage($id, $pkgId, $assetId));
+        break;
+
+    case 'delete_task':
+        $id = (int)($_POST['task_id'] ?? 0);
+        admanager_send(PluginAdmanagerVuln::deleteTask($id));
         break;
 
     case 'kill_switch_status':
