@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 // ── 数据准备 ──
 $tasks = PluginAdmanagerDeploy::getTasks(30);
 
-Html::header('部署任务列表', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
+Html::header('任务列表', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/deploy.html.twig', [
     'tasks'      => $tasks,

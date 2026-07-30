@@ -26,7 +26,7 @@ $jsConfig = json_encode([
 $canWrite = Session::haveRight('plugin_admanager_deploy', CREATE)
             || Session::haveRight('plugin_admanager_admin', CREATE);
 
-Html::header('AI Agent · 终端安全运维助手', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
+Html::header('AI助手 · 终端安全运维助手', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/agent.html.twig', [
     'config'     => $jsConfig,

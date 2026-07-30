@@ -15,17 +15,17 @@
     </li>
     <li class="nav-item">
       <a class="nav-link active" href="/plugins/admanager/front/vuln_rules.php">
-        <i class="ti ti-book me-1"></i>QID规则库
+        <i class="ti ti-book me-1"></i>修复规则
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/vuln_correct.php">
-        <i class="ti ti-message-chatbot me-1"></i>对话纠正
+        <i class="ti ti-message-chatbot me-1"></i>AI纠正
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/agent.php">
-        <i class="ti ti-robot me-1"></i>AI Agent
+        <i class="ti ti-robot me-1"></i>AI助手
       </a>
     </li>
   </ul>
@@ -38,7 +38,7 @@
   {# == 全局熔断开关 == #}
   {% if can_write %}
   <div class="card mb-3 border-danger" id="kill-switch-card">
-    <div class="card-header py-2 d-flex justify-content-between align-items-center bg-danger bg-opacity-10">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center" style="background:rgba(226,75,74,0.1)">
       <h5 class="mb-0"><i class="ti ti-shield-off me-1 text-danger"></i>全局熔断开关</h5>
       <span id="kill-switch-status" class="badge bg-secondary">查询中…</span>
     </div>
@@ -76,6 +76,7 @@
               <option value="software_upgrade">软件升级</option>
               <option value="software_uninstall">软件卸载</option>
               <option value="patch_install">补丁安装</option>
+              <option value="shell_exec">命令执行</option>
               <option value="manual_review">人工处理</option>
               <option value="unsupported">暂不支持</option>
             </select>
@@ -156,7 +157,14 @@
   <div class="card">
     <div class="card-header py-2 d-flex justify-content-between align-items-center">
       <h5 class="mb-0"><i class="ti ti-book me-1"></i>规则列表（{{ rules|length }}）</h5>
-      <input type="search" id="rules-search" class="form-control form-control-sm w-auto" placeholder="搜索 QID / 类型 / 备注…">
+      <div class="d-flex align-items-center gap-2">
+        {% if can_write %}
+        <button class="btn btn-sm btn-outline-primary" id="btn-copy-rule" type="button" title="将一条规则复制应用到勾选的 QID">
+          <i class="ti ti-copy me-1"></i>复制规则
+        </button>
+        {% endif %}
+        <input type="search" id="rules-search" class="form-control form-control-sm w-auto" placeholder="搜索 QID / 类型 / 备注…">
+      </div>
     </div>
     <div class="card-body p-0">
       <div class="ad-table-wrap">
@@ -216,6 +224,7 @@
                 <option value="software_upgrade">软件升级</option>
                 <option value="software_uninstall">软件卸载</option>
                 <option value="patch_install">补丁安装</option>
+                <option value="shell_exec">命令执行</option>
                 <option value="manual_review">人工处理</option>
                 <option value="unsupported">暂不支持</option>
               </select></div>
@@ -273,5 +282,43 @@
     </div>
   </div>
 
+  {# == 复制规则到指定 QID 弹窗 == #}
+  <div class="modal fade" id="copyRuleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h5 class="modal-title"><i class="ti ti-copy me-1"></i>复制规则到指定 QID</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-bold">源规则（要复制的规则）</label>
+            <select id="copy-source-rule" class="form-select form-select-sm"></select>
+            <div class="form-text small" id="copy-source-info"></div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">目标 QID（勾选现有规则对应的 QID，或手动补充）</label>
+            <input type="search" id="copy-qid-filter" class="form-control form-control-sm mb-2" placeholder="筛选 QID…">
+            <div id="copy-qid-list" class="border rounded p-2" style="max-height:200px;overflow:auto">
+              <div class="text-muted small">加载中…</div>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-bold">附加 QID（每行一个或逗号分隔；可补充清单中没有的 QID）</label>
+            <textarea id="copy-qid-extra" class="form-control form-control-sm" rows="2" placeholder="例如：&#10;383637&#10;383638"></textarea>
+          </div>
+          <div class="alert alert-warning py-2 small mb-0">
+            <i class="ti ti-info-circle me-1"></i>目标 QID 若已有规则将被<b>覆盖更新</b>为该源规则内容；不存在则新建。
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-primary" id="btn-copy-confirm">确认复制</button>
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/plugins/admanager/js/vuln.js"></script>
+<script src="/plugins/admanager/js/adm-utils.js"></script>
 </div>

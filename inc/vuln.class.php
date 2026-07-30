@@ -255,11 +255,11 @@ class PluginAdmanagerVuln
     }
 
     public static function createRule(array $fields): array {
-        // action_template / rollback_plan 可能以 JSON 字符串形式由表单提交，解码为数组
+        // action_template / rollback_plan 经 $_POST 提交时会被 GLPI Sanitizer 转义，
+        // 故前端统一 base64 编码；此处优先 base64 解码，失败回退原始 json_decode（兼容旧调用）。
         foreach (['action_template', 'rollback_plan'] as $k) {
             if (isset($fields[$k]) && is_string($fields[$k])) {
-                $fields[$k] = $fields[$k] === ''
-                    ? null : (json_decode($fields[$k], true) ?: null);
+                $fields[$k] = self::decodeJsonField($fields[$k]);
             }
         }
         try {
@@ -275,8 +275,7 @@ class PluginAdmanagerVuln
     public static function updateRule(int $ruleId, array $fields): array {
         foreach (['action_template', 'rollback_plan'] as $k) {
             if (isset($fields[$k]) && is_string($fields[$k])) {
-                $fields[$k] = $fields[$k] === ''
-                    ? null : (json_decode($fields[$k], true) ?: null);
+                $fields[$k] = self::decodeJsonField($fields[$k]);
             }
         }
         try {
@@ -300,6 +299,91 @@ class PluginAdmanagerVuln
         }
     }
 
+    /**
+     * 解码动作模板/回滚方案字段。
+     * 前端经 $_POST 提交 JSON 时因 GLPI Sanitizer 会破坏引号，统一 base64 编码后透传；
+     * 这里 strict 校验 base64 合法且能解出 JSON 才采用，否则回退原始 json_decode（兼容旧调用）。
+     */
+    private static function decodeJsonField($v) {
+        if (!is_string($v) || $v === '') {
+            return null;
+        }
+        $b = base64_decode($v, true);
+        if ($b !== false && base64_encode($b) === $v) {
+            $dec = json_decode($b, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $dec;
+            }
+        }
+        return json_decode($v, true) ?: null;
+    }
+
+    /**
+     * 将源规则复制应用到一组目标 QID：已存在则更新、不存在则新建（UPSERT）。
+     * 仅传 source_rule_id，服务端从 API 取源规则内容，避免把 JSON 透传 $_POST 被 Sanitizer 破坏。
+     */
+    public static function copyRule(int $sourceRuleId, array $targetQids): array {
+        $all = self::getRules();
+        $src = null;
+        foreach ($all as $r) {
+            if ((int)($r['id'] ?? 0) === $sourceRuleId) {
+                $src = $r;
+                break;
+            }
+        }
+        if (!$src) {
+            return ['ok' => false, 'message' => "源规则 #{$sourceRuleId} 不存在"];
+        }
+        // 源规则里 action_template / rollback_plan 若仍是 JSON 字符串则先解码为数组
+        foreach (['action_template', 'rollback_plan'] as $k) {
+            if (isset($src[$k]) && is_string($src[$k])) {
+                $src[$k] = self::decodeJsonField($src[$k]);
+            }
+        }
+        $byQid = [];
+        foreach ($all as $r) {
+            $byQid[(string)($r['qid'] ?? '')] = $r;
+        }
+        $client = PluginAdmanagerFastApiClient::getInstance();
+        $created = []; $updated = []; $errors = [];
+        foreach ($targetQids as $q) {
+            $q = trim((string)$q);
+            if ($q === '') {
+                continue;
+            }
+            $payload = [
+                'qid'                => $q,
+                'fix_type'           => $src['fix_type'] ?? 'manual_review',
+                'default_risk_level' => $src['default_risk_level'] ?? 'medium',
+                'status'             => $src['status'] ?? 'active',
+                'action_template'    => $src['action_template'] ?? null,
+                'rollback_plan'      => $src['rollback_plan'] ?? null,
+                'notes'              => '复制自规则 #' . $sourceRuleId . ' (QID ' . ($src['qid'] ?? '') . ')',
+            ];
+            try {
+                if (isset($byQid[$q])) {
+                    $client->put('/api/vuln/rules/' . (int)$byQid[$q]['id'], $payload);
+                    $updated[] = $q;
+                } else {
+                    $client->post('/api/vuln/rules', $payload);
+                    $created[] = $q;
+                }
+            } catch (\Exception $e) {
+                $errors[] = $q . ': ' . $e->getMessage();
+            }
+        }
+        PluginAdmanagerAuditLog::write('vuln_rule_copy', 'vuln',
+            (string)$sourceRuleId, implode(',', array_merge($created, $updated)),
+            ['created' => $created, 'updated' => $updated, 'errors' => $errors], empty($errors), '');
+        $ok = empty($errors);
+        $msg = sprintf('复制完成：新建 %d 条、更新 %d 条、失败 %d 条',
+            count($created), count($updated), count($errors));
+        if ($errors) {
+            $msg .= '；失败：' . implode('；', $errors);
+        }
+        return ['ok' => $ok, 'message' => $msg, 'created' => $created, 'updated' => $updated, 'errors' => $errors];
+    }
+
     // ── 辅助 ──────────────────────────────────────────────────────────────
 
     /** 终端列表（人工修正匹配下拉用），异常时空数组 */
@@ -313,6 +397,7 @@ class PluginAdmanagerVuln
             'software_upgrade'   => '软件升级',
             'software_uninstall' => '软件卸载',
             'patch_install'      => '补丁安装',
+            'shell_exec'         => '命令执行',
             'manual_review'      => '人工处理',
             'unsupported'        => '暂不支持',
         ][$t] ?? $t;
@@ -362,6 +447,15 @@ class PluginAdmanagerVuln
 
             case 'manual_review':
                 return '需人工处理：' . ($action['reason'] ?? $action['description'] ?? '未说明原因');
+
+            case 'shell_exec':
+                $cmd = $action['command'] ?? '';
+                if ($cmd === '') {
+                    return $action['description'] ?? '（未指定命令）';
+                }
+                $cmd = preg_replace('/\s+/', ' ', $cmd);
+                $len = mb_strlen($cmd);
+                return '执行命令：' . ($len > 90 ? mb_substr($cmd, 0, 90) . '…' : $cmd);
 
             default:
                 return $action['description'] ?? ('（' . substr(json_encode($action, JSON_UNESCAPED_UNICODE), 0, 80) . '…）');
@@ -421,14 +515,23 @@ class PluginAdmanagerVuln
 
     /**
      * 对某修复任务提交人工纠正（对话式规则核心入口）。
-     * $correctedAction 可以是 JSON 字符串（表单 textarea）或数组。
+     * $correctedAction 可以是 base64(JSON) 字符串、原始 JSON 字符串或数组。
+     *
+     * 注意：GLPI 在 inc/includes.php 会对 $_POST 做 Sanitizer::sanitize（HTML 转义），
+     * 直接传 JSON 会把结构引号 " 变成 &quot;，导致 json_decode 失败并误报“JSON 格式无效”。
+     * 因此前端改为 base64 传输；此处先尝试 base64 解码（strict），失败则回退为原始 JSON 字符串。
      */
     public static function correctTask(int $taskId, string $fixType, $correctedAction,
                                         string $note = '', bool $promoteToRule = false): array {
         // corrected_action: 字符串 → 解码为数组
         if (is_string($correctedAction)) {
-            $decoded = json_decode($correctedAction, true);
-            if ($decoded === null && trim($correctedAction) !== '') {
+            // 先尝试 base64 解码（strict 模式：含非 base64 字符直接返回 false）
+            $raw = base64_decode($correctedAction, true);
+            if ($raw === false) {
+                $raw = $correctedAction; // 非 base64 → 视为原始 JSON 字符串（兼容旧调用）
+            }
+            $decoded = json_decode($raw, true);
+            if ($decoded === null && trim($raw) !== '') {
                 return ['ok' => false, 'message' => '纠正动作 JSON 格式无效'];
             }
             $correctedAction = $decoded ?: new \stdClass();

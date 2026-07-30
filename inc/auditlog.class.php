@@ -13,8 +13,7 @@ class PluginAdmanagerAuditLog extends CommonDBTM
      */
     /** 自动化操作（不计审计，防止数据库膨胀） */
     private static $skipActions = [
-        'import_computer', 'import_software', 'import_user',
-        'sync_from_api', 'sync_computer', 'sync_software',
+        'sync_from_api',   // 自动同步（API定时任务），不记审计
     ];
 
     public static function write(

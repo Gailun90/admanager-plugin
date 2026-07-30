@@ -49,7 +49,7 @@ $clients       = PluginAdmanagerDeploy::getClients();
 $groups        = PluginAdmanagerDeploy::getGroups();
 $deploy_config = PluginAdmanagerDeploy::getDeployConfig();
 
-Html::header('新建部署任务', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
+Html::header('新建任务', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/deploy_new_task.html.twig', [
     'packages'      => $packages,

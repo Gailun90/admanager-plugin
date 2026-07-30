@@ -4,9 +4,9 @@
   <ul class="nav nav-tabs mb-3">
     <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/vuln_import.php"><i class="ti ti-file-import me-1"></i>导入记录</a></li>
     <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/vuln_tasks.php"><i class="ti ti-list-check me-1"></i>待处理任务</a></li>
-    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/vuln_rules.php"><i class="ti ti-book me-1"></i>QID规则库</a></li>
-    <li class="nav-item"><a class="nav-link active" href="/plugins/admanager/front/vuln_correct.php"><i class="ti ti-message-chatbot me-1"></i>对话纠正</a></li>
-    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/agent.php"><i class="ti ti-robot me-1"></i>AI Agent</a></li>
+    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/vuln_rules.php"><i class="ti ti-book me-1"></i>修复规则</a></li>
+    <li class="nav-item"><a class="nav-link active" href="/plugins/admanager/front/vuln_correct.php"><i class="ti ti-message-chatbot me-1"></i>AI纠正</a></li>
+    <li class="nav-item"><a class="nav-link" href="/plugins/admanager/front/agent.php"><i class="ti ti-robot me-1"></i>AI助手</a></li>
   </ul>
 
   <div class="alert alert-info py-2 small mb-3">
@@ -133,7 +133,7 @@
         <div class="mb-3"><label class="form-label fw-bold small">描述（可选）</label>
           <input type="text" id="correct_desc" class="form-control form-control-sm" placeholder="给人看的动作说明"></div>
         <div class="mb-3"><label class="form-label small text-muted">动作预览（自动拼装，提交即按此 JSON 下发）</label>
-          <pre id="correct_preview" class="small p-2 rounded bg-light" style="max-height:180px;overflow:auto">{}</pre></div>
+          <pre id="correct_preview" class="small p-2 rounded" style="max-height:180px;overflow:auto;background:#1e1e2e;color:#e6e6e6;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;border:1px solid #34344a;">{}</pre></div>
         <div class="mb-3"><label class="form-label fw-bold small">备注</label>
           <input type="text" id="correct_note" class="form-control form-control-sm"></div>
         <div class="form-check mb-3"><input type="checkbox" class="form-check-input" id="correct_promote"><label class="form-check-label small" for="correct_promote">沉淀为正式规则</label></div>
@@ -148,7 +148,7 @@
 <div class="modal fade" id="aiChatModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title"><i class="ti ti-message-chatbot me-1"></i>AI 对话纠正</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header"><h5 class="modal-title"><i class="ti ti-message-chatbot me-1"></i>AI AI纠正</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <input type="hidden" id="ai_task_id">
         <p class="mb-2"><span class="badge bg-secondary" id="ai_qid_badge"></span> <span class="badge bg-light text-dark ms-1" id="ai_current_fix"></span><br><span class="text-muted small" id="ai_title"></span></p>
@@ -199,6 +199,14 @@ var hideModal = function(id) { var m = bootstrap.Modal.getInstance(document.getE
 
 // ── 手动纠正：结构化动作表单（按修复类型联动）──
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+// UTF-8 安全的 base64 编码：GLPI 的 Sanitizer 会对 $_POST 做 HTML 转义，直接传 JSON 会把引号破坏；
+// 改成 base64 传输（仅含 A-Za-z0-9+/=，不会被转义），后端再 base64_decode 还原。
+function b64encodeUtf8(str){
+  var bytes = new TextEncoder().encode(str);
+  var bin = '';
+  for (var i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
 var CORRECT_FIX_GROUPS = {
   registry_fix: 'grp-registry',
   software_upgrade: 'grp-software',
@@ -355,7 +363,7 @@ document.getElementById('correct_submit').addEventListener('click', function() {
   ajax('correct_task', {
     task_id: document.getElementById('correct_task_id').value,
     fix_type: ft,
-    corrected_action: JSON.stringify(act),
+    corrected_action: b64encodeUtf8(JSON.stringify(act)),
     note: document.getElementById('correct_note').value,
     promote_to_rule: document.getElementById('correct_promote').checked ? '1' : '0'
   }, function(res) {
@@ -379,7 +387,7 @@ document.querySelectorAll('.del-corr-btn').forEach(function(btn) {
   });
 });
 
-// ── AI 对话纠正 ──
+// ── AI AI纠正 ──
 var aiProposal = null;
 function resetAiModal() {
   var area = document.getElementById('ai_chat_area');
@@ -438,8 +446,8 @@ document.getElementById('ai_apply').addEventListener('click', function() {
   ajax('correct_task', {
     task_id: document.getElementById('ai_task_id').value,
     fix_type: aiProposal.fix_type,
-    corrected_action: JSON.stringify(actData),
-    note: 'AI 对话纠正', promote_to_rule: '0'
+    corrected_action: b64encodeUtf8(JSON.stringify(actData)),
+    note: 'AI AI纠正', promote_to_rule: '0'
   }, function(res) {
     btn.disabled = false; btn.innerHTML = '<i class="ti ti-check me-1"></i>确认下发';
     if (res.ok) { hideModal('aiChatModal'); showMsg(res.message, 'success'); setTimeout(function(){ location.reload(); }, 1200); }
@@ -468,3 +476,4 @@ document.getElementById('correctModal').addEventListener('hidden.bs.modal', func
   document.getElementById('registry-ops').innerHTML = '';
 });
 </script>
+<script src="/plugins/admanager/js/adm-utils.js"></script>

@@ -116,7 +116,7 @@ unset($c);
 $canWrite = Session::haveRight('plugin_admanager_deploy', CREATE)
             || Session::haveRight('plugin_admanager_admin', CREATE);
 
-Html::header('漏洞修复 · 对话纠正', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
+Html::header('漏洞管理 · AI纠正', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/vuln_correct.html.twig', [
     'tasks'       => $tasks,

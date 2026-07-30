@@ -1,18 +1,19 @@
+<link rel="stylesheet" href="/plugins/admanager/css/adm.css">
 <div class="adm-page">
   <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/deploy_new_task.php">
-        <i class="ti ti-send me-1"></i>新建部署任务
+        <i class="ti ti-send me-1"></i>新建任务
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link active" href="/plugins/admanager/front/deploy.php">
-        <i class="ti ti-list-check me-1"></i>部署任务列表
+        <i class="ti ti-list-check me-1"></i>任务列表
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/deploy_package.php">
-        <i class="ti ti-package me-1"></i>安装包库
+        <i class="ti ti-package me-1"></i>软件仓库
       </a>
     </li>
     <li class="nav-item">
@@ -28,7 +29,7 @@
       <div class="d-flex gap-2">
         {% if can_write %}
         <a href="/plugins/admanager/front/deploy_new_task.php" class="btn btn-sm btn-primary">
-          <i class="ti ti-plus me-1"></i>新建部署任务
+          <i class="ti ti-plus me-1"></i>新建任务
         </a>
         {% endif %}
         <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
@@ -233,7 +234,7 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
           document.querySelectorAll('.log-btn').forEach(function(b) {
             b.onclick = function() {
               var div = document.createElement('div');
-              div.innerHTML = '<div class="modal fade" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">' + esc(this.dataset.host) + ' 执行日志</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><pre style="max-height:500px;overflow:auto;font-size:.75rem;background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:4px;white-space:pre-wrap;word-break:break-all">' + esc(this.dataset.log) + '</pre></div></div></div></div>';
+              div.innerHTML = '<div class="modal fade" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">' + esc(this.dataset.host) + ' 执行日志</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><pre style="max-height:500px;overflow:auto;font-size:.75rem;background:#1e1e2e;color:#e6e6e6;padding:1rem;border-radius:4px;white-space:pre-wrap;word-break:break-all">' + esc(this.dataset.log) + '</pre></div></div></div></div>';
               document.body.appendChild(div);
               var m = new bootstrap.Modal(div.querySelector('.modal'));
               m.show();
@@ -260,7 +261,7 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
       b+='<table class="table table-sm table-bordered mb-3"><tr><td class="table-light" style="width:100px">名称</td><td>'+e(d.name)+'</td></tr><tr><td class="table-light">类型</td><td>'+e(d.task_type)+' / '+e(d.interpreter)+' / '+e(d.run_as)+' / '+(d.need_reboot?'需重启':'否')+'</td></tr><tr><td class="table-light">创建</td><td>'+(d.created_at?d.created_at.substring(0,19).replace('T',' '):'-')+'</td></tr></table>';
       if(d.uninstall_target)b+='<h6>卸载目标</h6><pre class="mb-3 p-2 bg-light rounded small">'+e(d.uninstall_target)+'</pre>';
       if(d.registry_ops)b+='<h6>注册表操作</h6><pre class="mb-3 p-2 bg-light rounded small" style="max-height:300px;overflow:auto">'+e(JSON.stringify(d.registry_ops,null,2))+'</pre>';
-      if(d.command)b+='<h6>执行脚本</h6><pre class="p-3 rounded" style="max-height:500px;overflow:auto;font-size:.75rem;background:#1e1e1e;color:#d4d4d4;white-space:pre-wrap;word-break:break-all">'+e(d.command)+'</pre>';
+      if(d.command)b+='<h6>执行脚本</h6><pre class="p-3 rounded" style="max-height:500px;overflow:auto;font-size:.75rem;background:#1e1e2e;color:#e6e6e6;white-space:pre-wrap;word-break:break-all">'+e(d.command)+'</pre>';
       body.innerHTML=b;
       var back=document.getElementById('backToDetailBtn');
       if(back){back.addEventListener('click',function(){
@@ -339,3 +340,4 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
 })();
 </script>
 <script src="/plugins/admanager/js/deploy.js"></script>
+<script src="/plugins/admanager/js/adm-utils.js"></script>

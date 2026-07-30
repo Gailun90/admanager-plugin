@@ -159,7 +159,7 @@ $can_create = PluginAdmanagerProfile::canDo('admin', CREATE);
 $templates = PluginAdmanagerUserTemplate::getAll();
 $fields_meta = PluginAdmanagerUserTemplate::allFields();
 
-Html::header('AD用户管理', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'aduser');
+Html::header('AD用户', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'aduser');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/aduser_list.html.twig', [
     'users'          => $users,

@@ -88,7 +88,7 @@ if (is_dir($pkgDir)) {
     }
 }
 
-Html::header('安装包库', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
+Html::header('软件仓库', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/deploy_package.html.twig', [
     'packages'       => $packages,

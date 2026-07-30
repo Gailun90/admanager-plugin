@@ -16,17 +16,17 @@
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/vuln_rules.php">
-        <i class="ti ti-book me-1"></i>QID规则库
+        <i class="ti ti-book me-1"></i>修复规则
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/vuln_correct.php">
-        <i class="ti ti-message-chatbot me-1"></i>对话纠正
+        <i class="ti ti-message-chatbot me-1"></i>AI纠正
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link active" href="/plugins/admanager/front/agent.php">
-        <i class="ti ti-robot me-1"></i>AI Agent
+        <i class="ti ti-robot me-1"></i>AI助手
       </a>
     </li>
   </ul>
@@ -157,9 +157,6 @@
   </div>
 </div>
 
-<link rel="stylesheet" href="/plugins/admanager/css/agent_chat.css">
-<script src="/plugins/admanager/js/agent_chat.js"></script>
-
 {# == Prompt 设置弹窗 == #}
 <div class="modal fade" id="promptModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -171,7 +168,7 @@
       <div class="modal-body">
         <div class="mb-3">
           <label class="form-label small fw-bold text-muted">基础 Prompt（系统内置，只读）</label>
-          <textarea class="form-control form-control-sm" id="prompt-base" rows="6" readonly style="font-size:12px;background:#f8f9fa;"></textarea>
+          <textarea class="form-control form-control-sm" id="prompt-base" rows="6" readonly style="font-size:12px;background:var(--tblr-bg-surface-secondary,#f8f9fa);"></textarea>
         </div>
         <div class="mb-3">
           <label class="form-label small fw-bold">企业自定义 Prompt（追加到基础 Prompt 之后）</label>
@@ -180,7 +177,7 @@
         </div>
         <div class="mb-2">
           <label class="form-label small fw-bold text-muted">合并后完整 Prompt（预览）</label>
-          <textarea class="form-control form-control-sm" id="prompt-preview" rows="4" readonly style="font-size:11px;background:#f8f9fa;color:#999;"></textarea>
+          <textarea class="form-control form-control-sm" id="prompt-preview" rows="4" readonly style="font-size:11px;background:var(--tblr-bg-surface-secondary,#f8f9fa);color:#999;"></textarea>
         </div>
       </div>
       <div class="modal-footer py-2">
@@ -190,3 +187,8 @@
     </div>
   </div>
 </div>
+
+
+<link rel="stylesheet" href="/plugins/admanager/css/agent_chat.css">
+<script src="/plugins/admanager/js/agent_chat.js"></script>
+<script src="/plugins/admanager/js/adm-utils.js"></script>

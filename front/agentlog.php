@@ -114,7 +114,7 @@ $baseQ   = array_filter([
 $prevUrl = '?' . http_build_query($baseQ + ['page' => max(1, $page - 1)]);
 $nextUrl = '?' . http_build_query($baseQ + ['page' => min($pages, $page + 1)]);
 
-Html::header('AI Agent · 对话审计日志', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
+Html::header('AI助手 · 对话审计日志', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/agentlog.html.twig', [
     'logs'       => $logs,

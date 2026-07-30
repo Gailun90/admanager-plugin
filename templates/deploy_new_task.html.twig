@@ -2,17 +2,17 @@
   <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
       <a class="nav-link active" href="/plugins/admanager/front/deploy_new_task.php">
-        <i class="ti ti-send me-1"></i>新建部署任务
+        <i class="ti ti-send me-1"></i>新建任务
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/deploy.php">
-        <i class="ti ti-list-check me-1"></i>部署任务列表
+        <i class="ti ti-list-check me-1"></i>任务列表
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/deploy_package.php">
-        <i class="ti ti-package me-1"></i>安装包库
+        <i class="ti ti-package me-1"></i>软件仓库
       </a>
     </li>
     <li class="nav-item">
@@ -27,12 +27,12 @@
   <div class="adm-content mx-auto" style="max-width:960px">
     {% if can_write %}
     <div class="card shadow-sm">
-      <div class="card-header py-3"><h6 class="mb-0"><i class="ti ti-send me-1"></i>新建部署任务</h6></div>
+      <div class="card-header py-3"><h6 class="mb-0"><i class="ti ti-send me-1"></i>新建任务</h6></div>
       <div class="card-body py-3">
         {% if packages is empty %}
           <div class="alert alert-warning py-2 px-3 small mb-2">
             暂无可用安装包，请先去
-            <a href="/plugins/admanager/front/deploy_package.php">安装包库</a>
+            <a href="/plugins/admanager/front/deploy_package.php">软件仓库</a>
             上传
           </div>
         {% endif %}
@@ -204,3 +204,4 @@
   toggle(sel.value);
 })();
 </script>
+<script src="/plugins/admanager/js/adm-utils.js"></script>

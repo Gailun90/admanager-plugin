@@ -1,6 +1,6 @@
 <?php
 /**
- * front/vuln_import.php — 漏洞修复 · 导入记录页
+ * front/vuln_import.php — 漏洞管理 · 导入记录页
  *
  * 功能：上传 Qualys 格式 xlsx → 后台解析 → 展示导入批次与进度/匹配统计。
  * 批准任务时，可自动执行类型由服务端下发到客户端代理执行。
@@ -30,7 +30,7 @@ $imports  = PluginAdmanagerVuln::getImports();
 $canWrite = Session::haveRight('plugin_admanager_deploy', CREATE)
             || Session::haveRight('plugin_admanager_admin', CREATE);
 
-Html::header('漏洞修复 · 导入记录', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
+Html::header('漏洞管理 · 导入记录', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/vuln_import.html.twig', [
     'imports'    => $imports,

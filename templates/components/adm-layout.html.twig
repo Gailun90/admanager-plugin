@@ -1,0 +1,23 @@
+{#
+  adm-layout.html.twig - 统一页面布局模板
+#}
+{% macro breadcrumb(items) %}
+  {% endmacro %}
+
+{% macro search() %}
+<div class="adm-search-wrapper">
+  <i class="ti ti-search adm-search-icon"></i>
+  <input type="text" class="adm-search-input" placeholder="搜索终端/用户/安全组..." autocomplete="off">
+  <div class="adm-search-dropdown"></div>
+</div>
+{% endmacro %}
+
+{% macro toolbar(title, icon, actions) %}
+<div class="adm-toolbar">
+  <div class="adm-toolbar-title">
+    {% if icon %}<i class="ti ti-{{ icon }} me-1"></i>{% endif %}
+    <span>{{ title }}</span>
+  </div>
+  <div class="adm-toolbar-actions">{{ actions|raw }}</div>
+</div>
+{% endmacro %}

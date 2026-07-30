@@ -1,6 +1,6 @@
 <?php
 /**
- * front/vuln_tasks.php — 漏洞修复 · 待处理任务页
+ * front/vuln_tasks.php — 漏洞管理 · 待处理任务页
  *
  * 功能：展示 AI 解析生成的修复任务，支持按状态/风险筛选、批量批准、
  *       单条批准/拒绝/标记手动处理。低风险且已匹配资产的任务默认预勾选；
@@ -40,7 +40,7 @@ unset($t);
 $canWrite = Session::haveRight('plugin_admanager_deploy', CREATE)
             || Session::haveRight('plugin_admanager_admin', CREATE);
 
-Html::header('漏洞修复 · 待处理任务', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
+Html::header('漏洞管理 · 待处理任务', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/vuln_tasks.html.twig', [
     'tasks'         => $tasks,

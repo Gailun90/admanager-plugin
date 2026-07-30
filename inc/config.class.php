@@ -131,8 +131,12 @@ class PluginAdmanagerConfig extends CommonDBTM
     {
         $c = self::getAll();
         return [
-            'url'    => rtrim($c['fastapi_url'], '/'),
-            'token'  => self::decryptField($c['fastapi_token']),
+            'url'    => rtrim(trim($c['fastapi_url']), '/'),
+            // trim()：曾经 .env 是 CRLF 换行导致 GLPI_API_TOKEN 读出来带了隐藏的 \r，
+            // 如果这里存的 token 也是当时复制粘贴带出来的，两边永远对不上，或者
+            // 更糟——带着 \r 的值拼进 Authorization 头会被 h11 当成非法请求直接拒绝。
+            // 这里防御性 trim 一下，不管这份配置是什么时候录入的都不再受影响。
+            'token'  => trim(self::decryptField($c['fastapi_token'])),
             'timeout'=> (int)($c['fastapi_timeout'] ?: 15),
         ];
     }

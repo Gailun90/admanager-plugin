@@ -224,7 +224,11 @@ function plugin_init_admanager(): void {
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ITEM_UPDATE]['admanager']['Computer'] = 'plugin_admanager_item_update_computer';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['admanager'][]        = 'css/admanager-layout.css';
 $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['admanager'][]        = 'css/admanager.css';
+$PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['admanager'][]        = 'css/adm.css';
+$PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_CSS]['admanager'][]        = 'css/theme-force.css';
     $PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['admanager'][] = 'js/admanager.js';
+$PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['admanager'][] = 'js/adm-utils.js';
+$PLUGIN_HOOKS[\Glpi\Plugin\Hooks::ADD_JAVASCRIPT]['admanager'][] = 'js/theme-force.js';
 
     // 注册 Profile tab（官方标准做法）
     Plugin::registerClass(PluginAdmanagerProfile::class, ['addtabon' => ['Profile']]);
@@ -237,18 +241,18 @@ function plugin_admanager_redefine_menus(array $menus): array {
     // 左侧菜单：独立页 + 分组入口（分组入口点进首页后通过页内 tab 切换，参照漏洞修复模式）
     $items = [
         'admanager_diff'    => ['title'=>'总览',       'icon'=>'ti ti-dashboard',       'page'=>'/plugins/admanager/front/dashboard.php'],
-        'admanager_vuln'    => ['title'=>'漏洞修复',   'icon'=>'ti ti-shield-check',    'page'=>'/plugins/admanager/front/vuln_import.php'],
+        'admanager_vuln'    => ['title'=>'漏洞管理',   'icon'=>'ti ti-shield-check',    'page'=>'/plugins/admanager/front/vuln_import.php'],
 
         // 终端（页内 tab: 手动导入 / 终端分组）
-        'admanager_terminal'=> ['title'=>'终端',       'icon'=>'ti ti-devices',          'page'=>'/plugins/admanager/front/import.php'],
+        'admanager_terminal'=> ['title'=>'终端管理',       'icon'=>'ti ti-devices',          'page'=>'/plugins/admanager/front/import.php'],
 
         // AD管理（页内 tab: AD用户管理 / 计算机查询 / BitLocker密钥 / AD安全组 / 用户模板）
         'admanager_admgr'   => ['title'=>'AD管理',     'icon'=>'ti ti-users-group',      'page'=>'/plugins/admanager/front/aduser.php'],
 
         // 软件计划（页内 tab: 软件部署 / 部署配置）
-        'admanager_software'=> ['title'=>'软件计划',   'icon'=>'ti ti-apps',             'page'=>'/plugins/admanager/front/deploy.php'],
+        'admanager_software'=> ['title'=>'软件分发',   'icon'=>'ti ti-apps',             'page'=>'/plugins/admanager/front/deploy.php'],
 
-        'admanager_im'      => ['title'=>'通讯平台',   'icon'=>'ti ti-brand-wechat',     'page'=>'/plugins/admanager/front/im.php'],
+        'admanager_im'      => ['title'=>'消息推送',   'icon'=>'ti ti-brand-wechat',     'page'=>'/plugins/admanager/front/im.php'],
         'admanager_audit'   => ['title'=>'审计日志',   'icon'=>'ti ti-clipboard-list',   'page'=>'/plugins/admanager/front/auditlog.php'],
 
         // 设置（页内 tab: 连接配置 / 关于）

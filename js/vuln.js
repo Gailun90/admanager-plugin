@@ -346,18 +346,35 @@
       });
     }
 
-    // ── 轻量可输入下拉（combobox）：保留原生 select.value 语义，叠加输入过滤 ──
+    // ── 轻量可输入下拉（combobox）：保留原生 select.value 语义，叠加输入过滤 + 无障碍 ──
     function makeCombobox(select) {
       if (!select || select._cmb) return select._cmb;
       select.style.display = 'none';
+      var listId = select.id ? select.id + '_listbox' : '';
       var wrap = document.createElement('div'); wrap.className = 'cmb';
+      wrap.setAttribute('role', 'combobox');
+      wrap.setAttribute('aria-expanded', 'false');
+      wrap.setAttribute('aria-haspopup', 'listbox');
+      if (listId) wrap.setAttribute('aria-owns', listId);
+
       var input = document.createElement('input');
       input.type = 'text'; input.autocomplete = 'off';
       input.className = 'form-control form-control-sm cmb-input';
       input.placeholder = '输入关键字搜索…';
+      input.setAttribute('role', 'combobox');
+      input.setAttribute('aria-autocomplete', 'list');
+      input.setAttribute('aria-expanded', 'false');
+      if (listId) input.setAttribute('aria-controls', listId);
+
       var list = document.createElement('div'); list.className = 'cmb-list'; list.style.display = 'none';
+      list.setAttribute('role', 'listbox');
+      if (listId) list.id = listId;
+      list.setAttribute('aria-label', select.getAttribute('aria-label') || '可搜索下拉选项');
+
       wrap.appendChild(input); wrap.appendChild(list);
       select.parentNode.insertBefore(wrap, select);
+
+      var activeIdx = -1;
       var api = {
         input: input, list: list,
         sync: function () {
@@ -367,6 +384,7 @@
           }
           if (!txt) txt = input.value; // 加载中等无匹配时保留已输入文本
           input.value = txt;
+          input.setAttribute('aria-activedescendant', '');
         },
         render: function () {
           var q = (input.value || '').trim().toLowerCase(), html = '', n = 0;
@@ -374,23 +392,63 @@
             var o = select.options[i];
             if (!o.value) continue;
             if (q && o.text.toLowerCase().indexOf(q) < 0) continue;
-            html += '<div class="cmb-opt" data-val="' + esc(o.value) + '">' + esc(o.text) + '</div>';
+            var optId = (select.id ? select.id + '_opt_' : 'cmb_opt_') + i;
+            html += '<div class="cmb-opt" role="option" id="' + optId + '" data-val="' + esc(o.value) +
+              '" aria-selected="false">' + esc(o.text) + '</div>';
             if (++n > 300) break;
           }
           list.innerHTML = html || '<div class="cmb-empty">无匹配</div>';
+          activeIdx = -1;
+          input.setAttribute('aria-activedescendant', '');
+        },
+        open: function () {
+          api.render(); list.style.display = 'block';
+          wrap.setAttribute('aria-expanded', 'true');
+          input.setAttribute('aria-expanded', 'true');
+        },
+        close: function () {
+          list.style.display = 'none';
+          wrap.setAttribute('aria-expanded', 'false');
+          input.setAttribute('aria-expanded', 'false');
+        },
+        move: function (dir) {
+          var opts = list.querySelectorAll('.cmb-opt');
+          if (!opts.length) return;
+          activeIdx = activeIdx < 0 ? 0 : (activeIdx + dir + opts.length) % opts.length;
+          for (var i = 0; i < opts.length; i++) {
+            var on = i === activeIdx;
+            opts[i].setAttribute('aria-selected', on ? 'true' : 'false');
+            opts[i].classList.toggle('cmb-active', on);
+          }
+          var active = opts[activeIdx];
+          if (active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+          input.setAttribute('aria-activedescendant', active.id);
+        },
+        choose: function (el) {
+          if (!el) return;
+          select.value = el.getAttribute('data-val');
+          select.dispatchEvent(new Event('change'));
+          input.value = el.textContent;
+          api.close();
         }
       };
-      input.addEventListener('focus', function () { api.render(); list.style.display = 'block'; });
-      input.addEventListener('input', function () { api.render(); list.style.display = 'block'; });
+      input.addEventListener('focus', api.open);
+      input.addEventListener('input', api.open);
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); api.move(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); api.move(-1); }
+        else if (e.key === 'Enter') {
+          var opts = list.querySelectorAll('.cmb-opt');
+          if (opts.length && activeIdx >= 0) { e.preventDefault(); api.choose(opts[activeIdx]); }
+        }
+        else if (e.key === 'Escape') { api.close(); input.blur(); }
+      });
       list.addEventListener('mousedown', function (e) {
         var t = e.target.closest('.cmb-opt'); if (!t) return;
         e.preventDefault();
-        select.value = t.getAttribute('data-val');
-        select.dispatchEvent(new Event('change'));
-        input.value = t.textContent;
-        list.style.display = 'none';
+        api.choose(t);
       });
-      document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) list.style.display = 'none'; });
+      document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) api.close(); });
       select._cmb = api;
       return api;
     }
@@ -551,6 +609,12 @@
 
         const params = { action: 'create_rule' };
         fd.forEach((v, k) => { if (k !== '_glpi_csrf_token') params[k] = v; });
+        // base64 编码 JSON 字段，规避 GLPI Sanitizer 对引号的转义（后端 base64_decode 还原）
+        ['action_template', 'rollback_plan'].forEach(k => {
+          if (params[k] && String(params[k]).trim() !== '') {
+            try { params[k] = btoa(unescape(encodeURIComponent(String(params[k])))); } catch (e) {}
+          }
+        });
         post(params).then(r => {
           if (r && r.ok) { toast(r.message); location.reload(); }
           else toast((r && r.message) || '创建失败', false);
@@ -615,6 +679,12 @@
 
         const params = { action: 'update_rule' };
         fd.forEach((v, k) => { if (k !== '_glpi_csrf_token') params[k] = v; });
+        // base64 编码 JSON 字段，规避 GLPI Sanitizer 对引号的转义
+        ['action_template', 'rollback_plan'].forEach(k => {
+          if (params[k] && String(params[k]).trim() !== '') {
+            try { params[k] = btoa(unescape(encodeURIComponent(String(params[k])))); } catch (e) {}
+          }
+        });
         post(params).then(r => {
           if (r && r.ok) { toast(r.message); location.reload(); }
           else toast((r && r.message) || '更新失败', false);
@@ -632,6 +702,84 @@
           else toast((r && r.message) || '删除失败', false);
         }).catch(() => toast('网络错误', false));
       });
+    });
+
+    // ── 复制规则到指定 QID ──
+    initCopyRule();
+  }
+
+  // 复制规则：选择源规则 + 勾选/填写目标 QID → UPSERT 应用
+  function initCopyRule() {
+    const btn = $('#btn-copy-rule');
+    if (!btn) return;
+    const modal = $('#copyRuleModal');
+    const srcSel = $('#copy-source-rule');
+    const srcInfo = $('#copy-source-info');
+    const qidList = $('#copy-qid-list');
+    const qidFilter = $('#copy-qid-filter');
+    const qidExtra = $('#copy-qid-extra');
+    const confirmBtn = $('#btn-copy-confirm');
+    const rows = $$('#rules-table tbody tr').filter(tr => tr.dataset && tr.dataset.id);
+
+    function cellText(tr, n) {
+      const td = tr.querySelector('td:nth-child(' + n + ')');
+      return td ? td.textContent.trim() : '';
+    }
+    function refreshSourceInfo() {
+      const tr = rows.find(r => r.dataset.id === srcSel.value);
+      srcInfo.textContent = tr
+        ? ('类型：' + cellText(tr, 2) + '；动作：' + cellText(tr, 3))
+        : '';
+    }
+    function buildSourceOptions() {
+      srcSel.innerHTML = '';
+      rows.forEach(tr => {
+        const opt = document.createElement('option');
+        opt.value = tr.dataset.id;
+        opt.textContent = 'QID ' + tr.dataset.qid + ' · ' + cellText(tr, 2);
+        srcSel.appendChild(opt);
+      });
+      refreshSourceInfo();
+    }
+    function renderQidList(filter) {
+      const seen = new Set();
+      let html = '';
+      rows.forEach(tr => {
+        const qid = tr.dataset.qid;
+        if (filter && !qid.includes(filter)) return;
+        if (seen.has(qid)) return;
+        seen.add(qid);
+        html += '<div class="form-check"><input class="form-check-input copy-qid-cb" type="checkbox" value="'
+              + qid + '" id="cq_' + qid + '">'
+              + '<label class="form-check-label small" for="cq_' + qid + '">' + qid + '</label></div>';
+      });
+      qidList.innerHTML = html || '<div class="text-muted small">无匹配 QID</div>';
+    }
+    btn.addEventListener('click', () => {
+      buildSourceOptions();
+      renderQidList('');
+      qidExtra.value = '';
+      qidFilter.value = '';
+      new bootstrap.Modal(modal).show();
+    });
+    srcSel.addEventListener('change', refreshSourceInfo);
+    qidFilter.addEventListener('input', () => renderQidList(qidFilter.value.trim()));
+
+    confirmBtn.addEventListener('click', () => {
+      const src = srcSel.value;
+      if (!src) { toast('请选择源规则', false); return; }
+      const qids = new Set();
+      $$('.copy-qid-cb:checked', qidList).forEach(cb => qids.add(cb.value));
+      qidExtra.value.split(/[\s,]+/).forEach(s => { s = s.trim(); if (s) qids.add(s); });
+      if (qids.size === 0) { toast('请至少勾选或填写一个目标 QID', false); return; }
+      confirmBtn.disabled = true;
+      post({ action: 'copy_rule', source_rule_id: src, target_qids: Array.from(qids) })
+        .then(r => {
+          confirmBtn.disabled = false;
+          if (r && r.ok) { toast(r.message); location.reload(); }
+          else toast((r && r.message) || '复制失败', false);
+        })
+        .catch(() => { confirmBtn.disabled = false; toast('网络错误', false); });
     });
   }
 
@@ -651,7 +799,7 @@
           toggleBtn.className = 'btn btn-sm btn-success';
           toggleBtn.innerHTML = '<i class="ti ti-shield-check me-1"></i>关闭熔断';
           card.classList.add('border-danger');
-          card.querySelector('.card-header')?.classList.add('bg-danger', 'bg-opacity-10', 'text-danger');
+          var hdr = card.querySelector('.card-header'); if(hdr) hdr.style.background = 'rgba(226,75,74,0.1)';
         } else {
           statusEl.className = 'badge bg-success';
           statusEl.textContent = '正常';
@@ -659,7 +807,7 @@
           toggleBtn.innerHTML = '<i class="ti ti-shield-off me-1"></i>开启熔断';
           card.classList.remove('border-danger');
           const h = card.querySelector('.card-header');
-          if (h) { h.classList.remove('bg-danger', 'bg-opacity-10', 'text-danger'); }
+          if (h) { h.style.background = ''; }
         }
         toggleBtn.disabled = false;
       }).catch(() => {

@@ -2,7 +2,7 @@
   <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/aduser.php">
-        <i class="ti ti-users me-1"></i>AD用户管理
+        <i class="ti ti-users me-1"></i>AD用户
       </a>
     </li>
     <li class="nav-item">
@@ -17,12 +17,12 @@
     </li>
     <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/adgroup.php">
-        <i class="ti ti-shield-lock me-1"></i>AD安全组
+        <i class="ti ti-shield-lock me-1"></i>安全组
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link active" href="/plugins/admanager/front/usertemplate.php">
-        <i class="ti ti-template me-1"></i>用户模板
+        <i class="ti ti-template me-1"></i>创建模板
       </a>
     </li>
   </ul>
@@ -365,7 +365,7 @@
         row.style.cursor = 'pointer';
         row.innerHTML =
           '<span class="badge bg-secondary" style="min-width:80px;font-size:11px">' + ouName + '</span>' +
-          '<code class="flex-grow-1 small text-break" style="color:#0d6efd">' + dn + '</code>' +
+          '<code class="flex-grow-1 small text-break" style="color:var(--adm-accent,#1D9E75)">' + dn + '</code>' +
           '<i class="ti ti-copy flex-shrink-0 text-muted" style="font-size:14px"></i>';
         row.addEventListener('click', function () {
           navigator.clipboard.writeText(dn).then(function () {
@@ -423,3 +423,4 @@
 })();
 </script>
 <script src="/plugins/admanager/js/aduser.js"></script>
+<script src="/plugins/admanager/js/adm-utils.js"></script>

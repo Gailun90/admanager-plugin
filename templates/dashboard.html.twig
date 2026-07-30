@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="{{ path('plugins/admanager/css/adm.css') }}">
 {#
   admanager Dashboard v2
   3-layer: KPI cards → panels → collapsible details
@@ -49,7 +50,7 @@
 #onlinePanel,
 #taskPanel {
     max-height: 260px;
-    overflow-y: auto;
+    overflow: auto;
 }
 #onlinePanel::-webkit-scrollbar,
 #taskPanel::-webkit-scrollbar {
@@ -94,12 +95,56 @@
       <span><i class="ti ti-dashboard me-1"></i>总览</span>
     </div>
     <div class="adm-toolbar-actions">
+      {# 全局搜索框 #}
+      <div class="adm-search-wrapper">
+        <input type="text" 
+               class="adm-search-input" 
+               placeholder="搜索终端/用户/安全组..." 
+               autocomplete="off"
+               id="globalSearchInput">
+        <div class="adm-search-dropdown" id="globalSearchDropdown"></div>
+      </div>
       <small class="text-muted" id="dashUpdated">加载中...</small>
     </div>
   </div>
 
   {# Layer 1: KPI Cards #}
-  <div class="row g-3 mb-3" id="dashCards">
+  
+  {# === 快捷入口卡片 === #}
+  <div class="adm-quick-cards">
+    <a href="/plugins/admanager/front/import.php" class="adm-quick-card" style="--card-accent:#378ADD;--card-bg:rgba(55,138,221,0.1)">
+      <div class="adm-quick-card-icon"><i class="ti ti-file-import"></i></div>
+      <div class="adm-quick-card-title">终端列表</div>
+      <div class="adm-quick-card-desc">终端资产管理</div>
+    </a>
+    <a href="/plugins/admanager/front/aduser.php" class="adm-quick-card" style="--card-accent:#639922;--card-bg:rgba(99,153,34,0.1)">
+      <div class="adm-quick-card-icon"><i class="ti ti-users"></i></div>
+      <div class="adm-quick-card-title">AD用户</div>
+      <div class="adm-quick-card-desc">管理 AD 域用户</div>
+    </a>
+    <a href="/plugins/admanager/front/deploy.php" class="adm-quick-card" style="--card-accent:#EF9F27;--card-bg:rgba(239,159,39,0.1)">
+      <div class="adm-quick-card-icon"><i class="ti ti-apps"></i></div>
+      <div class="adm-quick-card-title">软件分发</div>
+      <div class="adm-quick-card-desc">部署软件任务</div>
+    </a>
+    <a href="/plugins/admanager/front/vuln_import.php" class="adm-quick-card" style="--card-accent:#E24B4A;--card-bg:rgba(226,75,74,0.1)">
+      <div class="adm-quick-card-icon"><i class="ti ti-shield-check"></i></div>
+      <div class="adm-quick-card-title">漏洞管理</div>
+      <div class="adm-quick-card-desc">漏洞扫描与修复</div>
+    </a>
+    <a href="/plugins/admanager/front/adgroup.php" class="adm-quick-card" style="--card-accent:#7950F2;--card-bg:rgba(121,80,242,0.1)">
+      <div class="adm-quick-card-icon"><i class="ti ti-shield-lock"></i></div>
+      <div class="adm-quick-card-title">安全组</div>
+      <div class="adm-quick-card-desc">AD 安全组管理</div>
+    </a>
+    <a href="/plugins/admanager/front/auditlog.php" class="adm-quick-card" style="--card-accent:#0CA678;--card-bg:rgba(12,166,120,0.1)">
+      <div class="adm-quick-card-icon"><i class="ti ti-clipboard-list"></i></div>
+      <div class="adm-quick-card-title">审计日志</div>
+      <div class="adm-quick-card-desc">操作审计记录</div>
+    </a>
+  </div>
+
+<div class="row g-3 mb-3" id="dashCards">
     <div class="col-md-3">
       <div class="card dash-stat-card">
         <div class="card-body text-center py-3">
@@ -219,10 +264,95 @@
 
       // Sync panel
       var sh = '<div class="row"><div class="col-6"><strong>AD同步</strong>: '+(d.last_sync?esc(d.last_sync.substring(0,16).replace('T',' ')):'无')+'</div><div class="col-6"><strong>本周审计</strong>: '+(d.week_audit?d.week_audit.length:'0')+'条</div></div>';
+
       if(d.diff_count > 0) sh += '<div class="alert alert-warning py-1 mt-2 mb-0 small">⚠ '+esc(d.diff_count)+'台终端存在差异，<a href="?diff=1">前往处理 &rarr;</a></div>';
       document.getElementById('syncPanel').innerHTML = sh;
     })
     .catch(function(){ document.getElementById('dashUpdated').textContent = '\u52a0\u8f7d\u5931\u8d25'; });
+})();
+</script>
+<script src="{{ path('plugins/admanager/js/adm-utils.js') }}"></script>
+<script src="{{ path('plugins/admanager/js/adm-utils.js') }}"></script>
+
+<script>
+// 全局搜索
+(function(){
+  var input = document.getElementById('globalSearchInput');
+  var dropdown = document.getElementById('globalSearchDropdown');
+  if(!input || !dropdown) return;
+  var timer = null;
+
+  input.addEventListener('input', function(){
+    var q = input.value.trim();
+    clearTimeout(timer);
+    if(q.length < 2){
+      dropdown.classList.remove('show');
+      return;
+    }
+    timer = setTimeout(function(){
+      dropdown.innerHTML = '<div class="adm-search-empty">搜索中...</div>';
+      dropdown.classList.add('show');
+      fetch('/plugins/admanager/ajax/global_search.php?q=' + encodeURIComponent(q))
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if(!d.success){dropdown.innerHTML='<div class="adm-search-empty">搜索失败</div>';return;}
+          var data = d.data;
+          var html = '';
+          var total = (data.terminals||[]).length + (data.users||[]).length + (data.groups||[]).length;
+          if(total === 0){
+            dropdown.innerHTML = '<div class="adm-search-empty">未找到相关结果</div>';
+            return;
+          }
+          if(data.terminals && data.terminals.length){
+            html += '<div class="adm-search-section">终端</div>';
+            data.terminals.forEach(function(item){
+              html += '<a class="adm-search-item" href="'+item.url+'">'+
+                '<div class="adm-search-item-icon"><i class="ti ti-device-laptop"></i></div>'+
+                '<div class="adm-search-item-text">'+
+                '<div class="adm-search-item-title">'+item.name+'</div>'+
+                '<div class="adm-search-item-meta">SN: '+item.serial+'</div>'+
+                '</div></a>';
+            });
+          }
+          if(data.users && data.users.length){
+            html += '<div class="adm-search-section">AD用户</div>';
+            data.users.forEach(function(item){
+              html += '<a class="adm-search-item" href="'+item.url+'">'+
+                '<div class="adm-search-item-icon"><i class="ti ti-user"></i></div>'+
+                '<div class="adm-search-item-text">'+
+                '<div class="adm-search-item-title">'+item.name+' ('+item.sam+')</div>'+
+                '<div class="adm-search-item-meta">'+(item.dept||item.mail||'')+'</div>'+
+                '</div></a>';
+            });
+          }
+          if(data.groups && data.groups.length){
+            html += '<div class="adm-search-section">安全组</div>';
+            data.groups.forEach(function(item){
+              html += '<a class="adm-search-item" href="'+item.url+'">'+
+                '<div class="adm-search-item-icon"><i class="ti ti-shield-lock"></i></div>'+
+                '<div class="adm-search-item-text">'+
+                '<div class="adm-search-item-title">'+item.name+'</div>'+
+                '<div class="adm-search-item-meta">'+(item.desc||'')+'</div>'+
+                '</div></a>';
+            });
+          }
+          dropdown.innerHTML = html;
+        })
+        .catch(function(e){
+          dropdown.innerHTML = '<div class="adm-search-empty">搜索出错: '+e.message+'</div>';
+        });
+    }, 300);
+  });
+
+  // 点击外部关闭下拉
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.adm-search-wrapper')){
+      dropdown.classList.remove('show');
+    }
+  });
+  input.addEventListener('focus', function(){
+    if(input.value.trim().length >= 2) dropdown.classList.add('show');
+  });
 })();
 </script>
 

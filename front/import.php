@@ -312,7 +312,7 @@ try {
     $online_serials = array_flip($dash['online_serials'] ?? []);
 } catch (Exception $e) {}
 
-Html::header('手动导入', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'import');
+Html::header('终端列表', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'import');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/import.html.twig', [
     'clients'      => $clients,

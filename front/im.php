@@ -14,7 +14,7 @@ foreach (['wecom'=>'企业微信','dingtalk'=>'钉钉','feishu'=>'飞书'] as $k
     ];
 }
 
-Html::header('通讯平台', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_im');
+Html::header('消息推送', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_im');
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/im.html.twig', [
     'can_write'  => PluginAdmanagerProfile::canDo('admin', CREATE),
     'csrf_token' => Session::getNewCSRFToken(),

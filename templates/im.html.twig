@@ -223,7 +223,7 @@ window.loadPlatformUsers = function(platform){
     if(!d.ok){ el.innerHTML='<div class="text-danger p-3 small">'+esc(d.message)+'</div>'; return; }
     var users = d.data||[];
     if(!users.length){ el.innerHTML='<div class="text-muted text-center py-4 small">该平台暂无用户</div>'; return; }
-    var html='<table class="table table-sm table-hover mb-0"><thead class="table-light sticky-top"><tr>'
+    var html='<div class="ad-table-wrap"><table class="table table-sm table-hover mb-0"><thead class="table-light sticky-top"><tr>'
       +'<th>姓名</th><th>账号/ID</th><th>手机</th><th>状态</th><th>AD绑定</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
     users.forEach(u=>{
       var status = u.enabled
@@ -236,9 +236,9 @@ window.loadPlatformUsers = function(platform){
         ? '<button class="btn btn-xs btn-outline-secondary py-0 px-1" onclick="manualBind(\''+platform+'\',\''+esc(u.userid)+'\',\''+esc(u.name)+'\')" title="手动绑定AD账号"><i class="ti ti-link"></i></button>'
         : '';
       html+='<tr><td>'+esc(u.name||'')+'</td><td class="small text-muted">'+esc(u.userid)+'</td>'
-        +'<td class="small">'+esc(u.mobile||'')+'</td><td>'+status+'</td><td>'+bound+'</td>'+(CAN_W?'<td>'+action+'</td>':'')+'</tr>';
+        +'<td class="small">'+esc(u.mobile||'')+'</td><td>'+status+'</td><td>'+bound+'</td>'      +(CAN_W?'<td>'+action+'</td>':'')+'</tr>';
     });
-    html+='</tbody></table>';
+    html+='</tbody></table></div>';
     el.innerHTML=html;
   });
 };
@@ -250,7 +250,7 @@ function loadDeptMappings(platform){
     if(!d.ok){ el.innerHTML='<div class="text-danger p-2 small">'+esc(d.message)+'</div>'; return; }
     var rows = d.data||[];
     if(!rows.length){ el.innerHTML='<div class="text-muted text-center py-3 small">暂无映射，请添加</div>'; return; }
-    var html='<table class="table table-sm mb-0"><thead class="table-light"><tr><th>AD OU</th><th>平台部门</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
+    var html='<div class="ad-table-wrap"><table class="table table-sm mb-0"><thead class="table-light"><tr><th>AD OU</th><th>平台部门</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
     rows.forEach(r=>{
       var ou = r.ou_dn.split(',')[0] || r.ou_dn;
       html+='<tr><td class="small text-truncate" style="max-width:160px" title="'+esc(r.ou_dn)+'">'+esc(ou)+'</td>'
@@ -258,7 +258,7 @@ function loadDeptMappings(platform){
         +(CAN_W?'<td><button class="btn btn-xs btn-outline-danger py-0 px-1" onclick="removeDeptMapping('+r.id+',\''+platform+'\')"><i class="ti ti-x"></i></button></td>':'')
         +'</tr>';
     });
-    html+='</tbody></table>';
+    html+='</tbody></table></div>';
     el.innerHTML=html;
   });
 }
@@ -270,7 +270,7 @@ function loadBindings(platform){
     if(!d.ok){ el.innerHTML='<div class="text-danger p-2 small">'+esc(d.message)+'</div>'; return; }
     var rows = d.data||[];
     if(!rows.length){ el.innerHTML='<div class="text-muted text-center py-3 small">暂无绑定记录</div>'; return; }
-    var html='<table class="table table-sm mb-0"><thead class="table-light"><tr><th>AD账号</th><th>平台用户</th><th>状态</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
+    var html='<div class="ad-table-wrap"><table class="table table-sm mb-0"><thead class="table-light"><tr><th>AD账号</th><th>平台用户</th><th>状态</th>'+(CAN_W?'<th></th>':'')+'</tr></thead><tbody>';
     rows.forEach(r=>{
       var status = r.status==='active'
         ? '<span class="badge bg-success-subtle text-success">正常</span>'
@@ -285,7 +285,7 @@ function loadBindings(platform){
         +'<td class="small text-muted">'+esc(r.platform_name||r.platform_uid)+'</td>'
         +'<td>'+status+'</td>'+actions+'</tr>';
     });
-    html+='</tbody></table>';
+    html+='</tbody></table></div>';
     el.innerHTML=html;
   });
 }
@@ -306,7 +306,7 @@ window.openAutoMatch = function(platform){
       document.getElementById('autoMatchContent').innerHTML = '<div class="text-muted text-center py-5 small">所有平台用户均已绑定或无匹配结果</div>';
       return;
     }
-    var html='<table class="table table-sm table-hover mb-0"><thead class="table-light sticky-top"><tr>'
+    var html='<div class="ad-table-wrap"><table class="table table-sm table-hover mb-0"><thead class="table-light sticky-top"><tr>'
       +'<th>平台用户</th><th>手机/邮箱</th><th>推荐 AD 账号</th><th>匹配方式</th><th>置信度</th><th></th></tr></thead><tbody>';
     matches.forEach((m,idx)=>{
       var pu = m.platform_user;
@@ -331,7 +331,7 @@ window.openAutoMatch = function(platform){
             +'<i class="ti ti-check me-1"></i>确认</button>'
           : '')+'</td></tr>';
     });
-    html+='</tbody></table>';
+    html+='</tbody></table></div>';
     var wrap = document.getElementById('autoMatchContent');
     wrap.innerHTML = html;
     wrap.dataset.matches = JSON.stringify(matches);

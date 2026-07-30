@@ -16,7 +16,7 @@ try {
     $ous = [];
 }
 
-Html::header('用户创建模板', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'aduser');
+Html::header('创建模板', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'aduser');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/usertemplate.html.twig', [
     'templates'  => $templates,

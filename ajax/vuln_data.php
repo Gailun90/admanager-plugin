@@ -68,7 +68,8 @@ $act = $_GET['action'] ?? ($_POST['action'] ?? '');
 // 变更类操作清单（审核/规则维护，与“查看”权限分离）
 $WRITE_ACTIONS = ['approve', 'reject', 'mark_manual', 'dispatch', 'batch_approve',
                   'resolve_match', 'create_rule', 'update_rule', 'delete_rule', 'reparse_import',
-                  'rematch', 'rematch_package', 'manual_match', 'delete_task', 'kill_switch_toggle'];
+                  'rematch', 'rematch_package', 'manual_match', 'delete_task', 'kill_switch_toggle',
+                  'copy_rule'];
 
 if (in_array($act, $WRITE_ACTIONS, true)) {
     // 权限对齐 deploy 模块：变更需 plugin_admanager_deploy 或 plugin_admanager_admin，
@@ -159,6 +160,15 @@ switch ($act) {
     case 'delete_rule':
         $rid = (int)($_POST['rule_id'] ?? 0);
         admanager_send(PluginAdmanagerVuln::deleteRule($rid));
+        break;
+
+    case 'copy_rule':
+        $src = (int)($_POST['source_rule_id'] ?? 0);
+        $qids = $_POST['target_qids'] ?? [];
+        if (!is_array($qids)) {
+            $qids = [$qids];
+        }
+        admanager_send(PluginAdmanagerVuln::copyRule($src, $qids));
         break;
 
     case 'reparse_import':

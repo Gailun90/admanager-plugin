@@ -25,7 +25,7 @@ unset($r);
 $canWrite = Session::haveRight('plugin_admanager_deploy', CREATE)
             || Session::haveRight('plugin_admanager_admin', CREATE);
 
-Html::header('漏洞修复 · QID规则库', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
+Html::header('漏洞管理 · 修复规则', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_vuln');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/vuln_rules.html.twig', [
     'rules'      => $rules,

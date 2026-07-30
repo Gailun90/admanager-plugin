@@ -5,7 +5,7 @@
 include('../../../inc/includes.php');
 PluginAdmanagerProfile::checkRight('admin', READ);
 
-Html::header('AD安全组', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_adgroup');
+Html::header('安全组', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'admanager_adgroup');
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/adgroup.html.twig', [
     'can_write'  => PluginAdmanagerProfile::canDo('admin', CREATE),
     'csrf_token' => Session::getNewCSRFToken(),

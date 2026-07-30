@@ -1,8 +1,9 @@
+<link rel="stylesheet" href="/plugins/admanager/css/adm.css">
 <div class="adm-page">
   <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
       <a class="nav-link active" href="/plugins/admanager/front/import.php">
-        <i class="ti ti-file-import me-1"></i>手动导入
+        <i class="ti ti-file-import me-1"></i>终端列表
       </a>
     </li>
     <li class="nav-item">
@@ -29,17 +30,17 @@
   {% endif %}
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <h5 class="mb-0"><i class="ti ti-file-import me-1"></i>手动导入终端资产</h5>
-      <div class="d-flex gap-2 align-items-center flex-wrap">
+      <h5 class="mb-0"><i class="ti ti-file-import me-1"></i>终端列表终端资产</h5>
+      <div class="d-flex align-items-center flex-nowrap gap-1">
         <a href="?diff=1" class="btn btn-sm {{ diff_only ? 'btn-danger' : 'btn-outline-danger' }}">
           <i class="ti ti-alert-triangle me-1"></i>仅差异（{{ diff_list|length }}）
         </a>
-        <a href="?" class="btn btn-sm {{ not diff_only ? 'btn-primary' : 'btn-outline-primary' }} ms-1">
+        <a href="?" class="btn btn-sm {{ not diff_only ? 'btn-primary' : 'btn-outline-primary' }}">
           <i class="ti ti-list me-1"></i>全部终端
         </a>
-        {# ── 需求2：导出 CSV 按钮 ── #}
-        <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="exportTableCsv()" title="导出当前表格为 CSV">
-          <i class="ti ti-table-export me-1"></i>导出 CSV
+        {# ── 需求2：导出 按钮 ── #}
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportTableCsv()" title="导出当前表格为 CSV">
+          <i class="ti ti-table-export me-1"></i>导出
         </button>
         <div class="ad-search-input">
           <input type="text" id="importSearchInput" class="form-control form-control-sm"
@@ -47,18 +48,18 @@
                  oninput="filterImportRows(this.value)">
         </div>
         {# ── 修复“删除终端非常慢”：批量并发删除 + 一键清空全部 ── #}
-        <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger ms-1" disabled
-                title="批量删除所选终端（并发删除，秒级完成）">
-          <i class="ti ti-trash me-1"></i>批量删除所选
+        <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger" disabled
+                title="批量删除终端（并发删除，秒级完成）">
+          <i class="ti ti-trash me-1"></i>批量删除
         </button>
-        <button type="button" id="deleteAllBtn" class="btn btn-sm btn-danger ms-1"
+        <button type="button" id="deleteAllBtn" class="btn btn-sm btn-danger"
                 title="清空全部已注册终端（不可恢复）">
-          <i class="ti ti-eraser me-1"></i>清空全部终端
+          <i class="ti ti-eraser me-1"></i>清空全部
         </button>
       </div>
     </div>
     <div class="ad-table-wrap">
-<table class="table adm-table table-hover table-sm mb-0 align-middle" id="importTable">
+<table class="table adm-table table-hover table-sm mb-0 align-middle adm-no-filter" id="importTable">
         <thead class="table-light">
           <tr>
             <th style="width:36px"><input type="checkbox" id="select-all-clients" title="全选/取消全选"></th>
@@ -239,7 +240,7 @@ function filterImportRows(val) {
         row.style.display = (val === '' || text.toLowerCase().indexOf(val) !== -1) ? '' : 'none';
     });
 }
-// ── 需求2：导出 CSV ──────────────────────────────────────────────────────────
+// ── 需求2：导出 ──────────────────────────────────────────────────────────
 function exportTableCsv() {
     var table = document.getElementById('importTable');
     if (!table) return;
@@ -293,7 +294,7 @@ document.querySelectorAll('.sw-btn').forEach(function(btn) {
             '<div class="text-center py-4 text-muted">暂无软件记录</div>';
           return;
         }
-        var html = '<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr>' +
+        var html = '<table class="table table-sm table-hover mb-0 adm-no-filter"><thead class="table-light"><tr>' +
           '<th>软件名称</th><th>版本</th><th>发行商</th><th>安装日期</th><th style="width:80px">操作</th></tr></thead><tbody>';
         sw.forEach(function(s) {
           html += '<tr><td>' + escHtml(s.name) + '</td><td class="small text-muted">' +
@@ -579,3 +580,4 @@ function bindRemoteMouse(canvas) {
 }
 </script>
 <script src="/plugins/admanager/js/import.js"></script>
+<script src="/plugins/admanager/js/adm-utils.js"></script>

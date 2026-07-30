@@ -1,0 +1,114 @@
+/* ============================================================
+   admanager — 强制亮色主题 (theme-force.css)
+   ------------------------------------------------------------
+   目的：屏蔽 GLPI 暗色主题（palette=midnight/dark/darker 等），
+        使插件页面乃至整站始终为亮色系。
+   机制：GLPI 10.0.15 暗色由 palette CSS 变量 + Tabler 的
+        [data-bs-theme="dark"] 共同驱动。本文件在 :root 层用
+        !important 覆盖这些变量为亮色值；配合 js/theme-force.js
+        （强制 data-bs-theme=light、移除 .dark-mode、MutationObserver
+        防回弹）双保险。
+   加载：由 setup.php 的 ADD_CSS 钩子全局注入（插件启用即生效）。
+   ============================================================ */
+
+:root,
+:root[data-bs-theme="dark"],
+html.dark-mode,
+body.dark-mode,
+.dark-mode {
+    /* 浏览器原生控件 / 滚动条也走亮色 */
+    color-scheme: light !important;
+
+    /* ── GLPI 自有调色变量 → 亮色 ── */
+    --light: #f8f9fa;
+    --dark: #212529;
+    --body-bg: #ffffff;
+    --text-color: #1f2d3d;
+    --tbl-bg: #ffffff;
+    --tbl-color: #1f2d3d;
+    --tblr-bg-surface: #ffffff;
+    --tblr-bg-surface-secondary: #f8f9fa;
+    --tblr-bg-surface-tertiary: #f1f5f9;
+    --tblr-bg-surface-translucent: rgba(255, 255, 255, 0.6);
+
+    --card-bg: #ffffff;
+    --card-border-color: #e9ecef;
+
+    --header-bg: #2f3f64;          /* 保留 GLPI 默认浅色顶栏蓝 */
+    --header-fg: #f4f6fa;
+    --header-border-color: #e9ecef;
+
+    --mainmenu_bg: #2f3f64;        /* 左侧菜单强制亮色蓝 */
+    --mainmenu_fg: #f4f6fa;
+
+    --secondary: #6c757d;
+    --link-color: #0d6efd;
+    --hover-bg: #f1f5f9;
+
+    --input-bg: #ffffff;
+    --input-color: #1f2d3d;
+    --input-border: #ced4da;
+    --input-border-color: #ced4da;
+
+    --table-head-bg: #f8f9fa;
+    --table-head-color: #1f2d3d;
+    --table-head-border-color: #e9ecef;
+
+    --dark-mode-darken: #f1f5f9;
+    --dark-mode-text: #1f2d3d;
+
+    /* ── Bootstrap / Tabler 变量 → 亮色 ── */
+    --bs-body-bg: #ffffff;
+    --bs-body-color: #1f2d3d;
+    --bs-border-color: #dee2e6;
+    --bs-border-color-translucent: rgba(0, 0, 0, 0.175);
+    --bs-secondary-bg: #f8f9fa;
+    --bs-tertiary-bg: #f8f9fa;
+    --bs-emphasis-color: #000000;
+    --bs-link-color: #0d6efd;
+    --bs-link-hover-color: #0a58ca;
+    --bs-code-color: #d63384;
+
+    --tblr-body-color: #1f2d3d;
+    --tblr-muted: #6c757d;
+    --tblr-border-color: #e9ecef;
+    --tblr-border-color-translucent: rgba(0, 0, 0, 0.175);
+    --tblr-link-color: #0d6efd;
+
+    /* ── 灰度阶梯（覆盖暗色 palette 的反转灰度） ── */
+    --tblr-gray-100: #f8f9fa;
+    --tblr-gray-200: #e9ecef;
+    --tblr-gray-300: #dee2e6;
+    --tblr-gray-400: #ced4da;
+    --tblr-gray-500: #adb5bd;
+    --tblr-gray-600: #6c757d;
+    --tblr-gray-700: #495057;
+    --tblr-gray-800: #343a40;
+    --tblr-gray-900: #212529;
+    --bs-gray-100: #f8f9fa;
+    --bs-gray-200: #e9ecef;
+    --bs-gray-300: #dee2e6;
+    --bs-gray-400: #ced4da;
+    --bs-gray-500: #adb5bd;
+    --bs-gray-600: #6c757d;
+    --bs-gray-700: #495057;
+    --bs-gray-800: #343a40;
+    --bs-gray-900: #212529;
+}
+
+/* 暗色 palette 在 .dark-mode 作用域下对卡片/表单/弹窗的硬编码背景，
+   统一拉回亮色，避免“插件区一块暗、整站一块亮”的割裂感 */
+.dark-mode .card,
+.dark-mode .modal-content,
+.dark-mode .modal-header,
+.dark-mode .form-control,
+.dark-mode .form-select,
+.dark-mode .table,
+.dark-mode .table td,
+.dark-mode .table th,
+.dark-mode .accordion-button,
+.dark-mode .dropdown-menu {
+    background-color: var(--adm-surface, #ffffff) !important;
+    color: var(--adm-text, #3d3d3a) !important;
+    border-color: var(--adm-border, #d1d0c8) !important;
+}
