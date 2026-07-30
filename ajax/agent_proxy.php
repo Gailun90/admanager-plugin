@@ -119,7 +119,7 @@ case 'chat':
             'Content-Type: application/json',
             'Accept: text/event-stream',
         ],
-        CURLOPT_TIMEOUT        => 300,
+        CURLOPT_TIMEOUT        => 900,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_WRITEFUNCTION  => function ($ch, $data) {
             echo $data;
