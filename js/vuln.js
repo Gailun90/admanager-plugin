@@ -567,6 +567,7 @@
             <dt class="col-4">修复类型</dt><dd class="col-8">${fixLabel(d.fix_type)}</dd>
             <dt class="col-4">风险</dt><dd class="col-8">${riskBadge(d.risk_level)}</dd>
             <dt class="col-4">状态</dt><dd class="col-8">${statusBadge(d.status)}</dd>
+            ${(d.verify_max_attempts != null) ? `<dt class="col-4">验证进度</dt><dd class="col-8">${esc(d.verify_attempts||0)} / ${esc(d.verify_max_attempts)}（未达标自动重下发，达上限转人工）</dd>` : ''}
             ${(d.matched_package_name) ? `<dt class="col-4">匹配安装包</dt><dd class="col-8">${esc(d.matched_package_name)}（包ID ${esc(d.matched_package_id)}）</dd>` : ''}
             ${(d.needs_reboot) ? `<dt class="col-4">重启状态</dt><dd class="col-8"><span class="badge bg-warning text-dark">已完成（待重启生效）</span></dd>` : ''}
             <dt class="col-4">建议摘要</dt><dd class="col-8">${esc(d.action_summary || '')}</dd>
@@ -579,6 +580,104 @@
         }).catch(() => { body.innerHTML = '<span class="text-danger">加载失败</span>'; });
       });
     });
+  }
+
+  // ── 声明式验证判定条件 builder（规则编辑器用）──
+  function renderVerifyParams(sel, data) {
+    data = data || {};
+    const type = sel.value;
+    const row = sel.closest('.verify-row');
+    const box = row.querySelector('.verify-params');
+    let html = '';
+    if (type === 'file_not_exists' || type === 'file_exists') {
+      html = `<input name="v_path" class="form-control form-control-sm" placeholder="文件路径（如 %systemdrive%\\Users\\x\\file.exe）" value="${esc(data.path || '')}">`;
+    } else if (type === 'registry_equals') {
+      html = `<input name="v_hive" class="form-control form-control-sm" style="width:90px" placeholder="HKLM" value="${esc(data.hive || 'HKLM')}">`
+           + `<input name="v_path" class="form-control form-control-sm" placeholder="注册表路径" value="${esc(data.path || '')}">`
+           + `<input name="v_name" class="form-control form-control-sm" placeholder="值名称" value="${esc(data.name || '')}">`
+           + `<input name="v_value" class="form-control form-control-sm" placeholder="期望值" value="${esc(data.value || '')}">`;
+    } else if (type === 'registry_not_exists') {
+      html = `<input name="v_hive" class="form-control form-control-sm" style="width:90px" placeholder="HKLM" value="${esc(data.hive || 'HKLM')}">`
+           + `<input name="v_path" class="form-control form-control-sm" placeholder="注册表路径" value="${esc(data.path || '')}">`
+           + `<input name="v_name" class="form-control form-control-sm" placeholder="值名称" value="${esc(data.name || '')}">`;
+    } else if (type === 'service_stopped' || type === 'service_running') {
+      html = `<input name="v_name" class="form-control form-control-sm" placeholder="服务名（如 Spooler）" value="${esc(data.name || '')}">`;
+    } else if (type === 'command') {
+      html = `<input name="v_cmd" class="form-control form-control-sm" placeholder="返回 0=通过，非0=未通过" value="${esc(data.cmd || '')}">`;
+    }
+    box.innerHTML = html;
+  }
+
+  function addVerifyRow(prefix, data) {
+    data = data || {};
+    const container = document.getElementById('verify-rows-' + prefix);
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'verify-row border rounded p-2 mb-2 small';
+    row.innerHTML = `
+      <div class="d-flex gap-2 flex-wrap align-items-end">
+        <select name="v_type" class="form-select form-select-sm" style="width:auto" onchange="renderVerifyParams(this)">
+          <option value="file_not_exists">文件不存在</option>
+          <option value="file_exists">文件存在</option>
+          <option value="registry_equals">注册表值等于</option>
+          <option value="registry_not_exists">注册表值不存在</option>
+          <option value="service_stopped">服务已停止</option>
+          <option value="service_running">服务运行中</option>
+          <option value="command">自定义命令</option>
+        </select>
+        <div class="verify-params flex-grow-1 d-flex gap-1 flex-wrap"></div>
+        <button type="button" class="btn btn-xs btn-outline-danger" title="删除该判定" onclick="this.closest('.verify-row').remove()"><i class="ti ti-trash"></i></button>
+      </div>`;
+    container.appendChild(row);
+    const sel = row.querySelector('[name="v_type"]');
+    if (data.type) sel.value = data.type;
+    renderVerifyParams(sel, data);
+  }
+
+  function collectVerify(prefix) {
+    const container = document.getElementById('verify-rows-' + prefix);
+    if (!container) return [];
+    const out = [];
+    $$('.verify-row', container).forEach(row => {
+      const type = row.querySelector('[name="v_type"]').value;
+      const chk = { type };
+      let ok = true;
+      if (type === 'file_not_exists' || type === 'file_exists') {
+        const p = (row.querySelector('[name="v_path"]').value || '').trim();
+        if (!p) ok = false; else chk.path = p;
+      } else if (type === 'registry_equals' || type === 'registry_not_exists') {
+        const hive = (row.querySelector('[name="v_hive"]').value || '').trim() || 'HKLM';
+        const path = (row.querySelector('[name="v_path"]').value || '').trim();
+        const name = (row.querySelector('[name="v_name"]').value || '').trim();
+        if (!path || !name) ok = false;
+        else { chk.hive = hive; chk.path = path; chk.name = name; if (type === 'registry_equals') chk.value = row.querySelector('[name="v_value"]').value; }
+      } else if (type === 'service_stopped' || type === 'service_running') {
+        const n = (row.querySelector('[name="v_name"]').value || '').trim();
+        if (!n) ok = false; else chk.name = n;
+      } else if (type === 'command') {
+        const c = (row.querySelector('[name="v_cmd"]').value || '').trim();
+        if (!c) ok = false; else chk.cmd = c;
+      } else ok = false;
+      if (ok) out.push(chk);
+    });
+    return out;
+  }
+
+  // 把验证判定条件合并进 action_template（verify / verify_max_attempts）。
+  // 原 action_template 为空且无验证条件时返回 ''（避免写入空 {}）。
+  function mergeVerifyIntoAction(prefix, actionTemplateStr) {
+    const hadInput = !!(actionTemplateStr && actionTemplateStr.trim());
+    let atObj = null;
+    if (hadInput) { try { atObj = JSON.parse(actionTemplateStr); } catch (e) { atObj = null; } }
+    if (!atObj || typeof atObj !== 'object' || Array.isArray(atObj)) atObj = {};
+    const verify = collectVerify(prefix);
+    const maxEl = document.getElementById('verify_max_' + prefix);
+    const maxA = maxEl ? parseInt(maxEl.value, 10) : 0;
+    let changed = false;
+    if (verify.length) { atObj.verify = verify; changed = true; }
+    if (maxA >= 1) { atObj.verify_max_attempts = maxA; changed = true; }
+    if (!hadInput && !changed) return '';
+    return JSON.stringify(atObj);
   }
 
   // ── QID 规则库页 ──
@@ -607,8 +706,10 @@
           }
         }
 
+        // 合并验证判定条件到 action_template（verify / verify_max_attempts）
+        fd.set('action_template', mergeVerifyIntoAction('create', fd.get('action_template') || ''));
         const params = { action: 'create_rule' };
-        fd.forEach((v, k) => { if (k !== '_glpi_csrf_token') params[k] = v; });
+        fd.forEach((v, k) => { if (k === '_glpi_csrf_token' || k.indexOf('v_') === 0) return; params[k] = v; });
         // base64 编码 JSON 字段，规避 GLPI Sanitizer 对引号的转义（后端 base64_decode 还原）
         ['action_template', 'rollback_plan'].forEach(k => {
           if (params[k] && String(params[k]).trim() !== '') {
@@ -653,6 +754,17 @@
         $('#edit_notes').value = tr.dataset.notes || '';
         $('#edit_rollback').value = tr.dataset.rollback || '';
         $('#edit_action_template').value = tr.dataset.action || '';
+        // 预填验证判定条件（从 action_template 的 verify / verify_max_attempts 还原）
+        const atRaw = tr.dataset.action || '';
+        let atObj = null;
+        if (atRaw.trim()) { try { atObj = JSON.parse(atRaw); } catch (e) { atObj = null; } }
+        const vrows = document.getElementById('verify-rows-edit');
+        if (vrows) {
+          vrows.innerHTML = '';
+          if (atObj && Array.isArray(atObj.verify)) atObj.verify.forEach(v => addVerifyRow('edit', v));
+        }
+        const maxEdit = document.getElementById('verify_max_edit');
+        if (maxEdit) maxEdit.value = (atObj && atObj.verify_max_attempts) ? atObj.verify_max_attempts : 3;
         new bootstrap.Modal($('#editRuleModal')).show();
       });
     });
@@ -677,8 +789,10 @@
           }
         }
 
+        // 合并验证判定条件到 action_template（verify / verify_max_attempts）
+        fd.set('action_template', mergeVerifyIntoAction('edit', fd.get('action_template') || ''));
         const params = { action: 'update_rule' };
-        fd.forEach((v, k) => { if (k !== '_glpi_csrf_token') params[k] = v; });
+        fd.forEach((v, k) => { if (k === '_glpi_csrf_token' || k.indexOf('v_') === 0) return; params[k] = v; });
         // base64 编码 JSON 字段，规避 GLPI Sanitizer 对引号的转义
         ['action_template', 'rollback_plan'].forEach(k => {
           if (params[k] && String(params[k]).trim() !== '') {

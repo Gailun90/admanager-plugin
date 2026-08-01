@@ -68,7 +68,7 @@
         <option value="dispatched" {{ initial_status == 'dispatched' ? 'selected' }}>已下发</option>
         <option value="done" {{ initial_status == 'done' ? 'selected' }}>执行成功</option>
         <option value="failed" {{ initial_status == 'failed' ? 'selected' }}>执行失败</option>
-        <option value="rejected" {{ initial_status == 'rejected' ? 'selected' }}>已拒绝</option>
+        <option value="pending_verify" {{ initial_status == 'pending_verify' ? 'selected' }}>待后校验</option>
         <option value="needs_manual" {{ initial_status == 'needs_manual' ? 'selected' }}>已手动处理</option>
       </select>
     </div>
@@ -135,7 +135,12 @@
               <td>{{ t.fix_label }}</td>
               <td><span class="badge {{ t.risk_badge_class }}">{{ t.risk_label }}</span></td>
               <td class="small summary-cell" title="{{ t.action_summary|default('')|e('html_attr') }}" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.action_summary|default('')|slice(0,70) }}</td>
-              <td class="cell-status"><span class="badge {{ t.status_badge_class }}">{{ t.status_label }}</span></td>
+              <td class="cell-status">
+                <span class="badge {{ t.status_badge_class }}">{{ t.status_label }}</span>
+                {% if (t.status == 'pending_verify' or t.status == 'needs_manual') and t.verify_max_attempts %}
+                  <div class="small text-muted mt-1">验证 {{ t.verify_attempts|default(0) }}/{{ t.verify_max_attempts }}</div>
+                {% endif %}
+              </td>
               <td class="op-cell">
                 <div class="d-flex flex-wrap gap-1 align-items-center justify-content-start">
                 <button class="btn btn-xs btn-outline-info btn-detail" data-id="{{ t.id }}" title="查看详情"><i class="ti ti-eye"></i></button>
@@ -155,6 +160,9 @@
                   {% endif %}
                 {% endif %}
                 {% if can_write and t.status not in ['dispatched','done','pending_verify','rollback_required'] %}
+                  {% if t.status == 'needs_manual' %}
+                    <button class="btn btn-xs btn-warning task-act" data-action="dispatch" title="人工重试：重新下发并重新验证（重置重试计数）"><i class="ti ti-refresh"></i></button>
+                  {% endif %}
                   <button class="btn btn-xs btn-outline-danger task-delete" data-action="delete_task" title="删除任务（用于清理重复任务）"><i class="ti ti-trash"></i></button>
                 {% endif %}
                 </div>

@@ -421,13 +421,14 @@ class PluginAdmanagerVuln
                 $sw = $action['software'] ?? $action['uninstall_target'] ?? $action['package_name'] ?? '';
                 $ver = $action['target_version'] ?? '';
                 $verb = $fixType === 'software_uninstall' ? '卸载' : '升级到';
-                return $sw !== ''
+                $summary = $sw !== ''
                     ? trim("{$verb}「{$sw}」" . ($ver !== '' ? " {$ver}" : ''))
                     : ($action['description'] ?? '（未指定目标软件）');
+                break;
 
             case 'registry_fix':
                 $changes = $action['changes'] ?? [];
-                if (!$changes) return $action['description'] ?? '（无注册表变更项）';
+                if (!$changes) { $summary = $action['description'] ?? '（无注册表变更项）'; break; }
                 $parts = [];
                 foreach ($changes as $ch) {
                     $act = $ch['action'] ?? 'set';
@@ -439,27 +440,39 @@ class PluginAdmanagerVuln
                         ? ('删除 ' . $root . '\\' . $subkey . '\\' . $name)
                         : ($root . '\\' . $subkey . '\\' . $name . ' = ' . $value);
                 }
-                return implode('；', $parts);
+                $summary = implode('；', $parts);
+                break;
 
             case 'patch_install':
                 $kbs = $action['kb_ids'] ?? [];
-                return $kbs ? ('安装补丁：' . implode(', ', $kbs)) : ($action['description'] ?? '（未指定 KB 编号）');
+                $summary = $kbs ? ('安装补丁：' . implode(', ', $kbs)) : ($action['description'] ?? '（未指定 KB 编号）');
+                break;
 
             case 'manual_review':
-                return '需人工处理：' . ($action['reason'] ?? $action['description'] ?? '未说明原因');
+                $summary = '需人工处理：' . ($action['reason'] ?? $action['description'] ?? '未说明原因');
+                break;
 
             case 'shell_exec':
                 $cmd = $action['command'] ?? '';
                 if ($cmd === '') {
-                    return $action['description'] ?? '（未指定命令）';
+                    $summary = $action['description'] ?? '（未指定命令）';
+                    break;
                 }
                 $cmd = preg_replace('/\s+/', ' ', $cmd);
                 $len = mb_strlen($cmd);
-                return '执行命令：' . ($len > 90 ? mb_substr($cmd, 0, 90) . '…' : $cmd);
+                $summary = '执行命令：' . ($len > 90 ? mb_substr($cmd, 0, 90) . '…' : $cmd);
+                break;
 
             default:
-                return $action['description'] ?? ('（' . substr(json_encode($action, JSON_UNESCAPED_UNICODE), 0, 80) . '…）');
+                $summary = $action['description'] ?? ('（' . substr(json_encode($action, JSON_UNESCAPED_UNICODE), 0, 80) . '…）');
         }
+        // 声明式验证判定条件提示：标明本规则带"修复后自动校验"，且未达条件会循环重试/转人工
+        if (!empty($action['verify']) && is_array($action['verify'])) {
+            $n = count($action['verify']);
+            $max = !empty($action['verify_max_attempts']) ? (int)$action['verify_max_attempts'] : 3;
+            $summary .= " ｜ 验证判定×{$n}(最多重试{$max}次)";
+        }
+        return $summary;
     }
 
     public static function statusLabel(string $s): string {

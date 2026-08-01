@@ -42,11 +42,6 @@
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportTableCsv()" title="导出当前表格为 CSV">
           <i class="ti ti-table-export me-1"></i>导出
         </button>
-        <div class="ad-search-input">
-          <input type="text" id="importSearchInput" class="form-control form-control-sm"
-                 placeholder="搜索主机名/序列号/用户..."
-                 oninput="filterImportRows(this.value)">
-        </div>
         {# ── 修复“删除终端非常慢”：批量并发删除 + 一键清空全部 ── #}
         <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger" disabled
                 title="批量删除终端（并发删除，秒级完成）">
@@ -59,7 +54,7 @@
       </div>
     </div>
     <div class="ad-table-wrap">
-<table class="table adm-table table-hover table-sm mb-0 align-middle adm-no-filter" id="importTable">
+<table class="table adm-table table-hover table-sm mb-0 align-middle" id="importTable">
         <thead class="table-light">
           <tr>
             <th style="width:36px"><input type="checkbox" id="select-all-clients" title="全选/取消全选"></th>
@@ -231,15 +226,6 @@
 <script>
 var FASTAPI_SERVER_URL = '{{ (fastapi_server_url is defined and fastapi_server_url) ? fastapi_server_url : FASTAPI_URL }}';
 var FASTAPI_URL = '{{ (fastapi_url is defined and fastapi_url) ? fastapi_url : "http://127.0.0.1:8000" }}';
-// 导入页面表格搜索过滤
-function filterImportRows(val) {
-    val = val.toLowerCase().trim();
-    var rows = document.querySelectorAll('#importTableBody tr');
-    rows.forEach(function(row) {
-        var text = row.textContent || '';
-        row.style.display = (val === '' || text.toLowerCase().indexOf(val) !== -1) ? '' : 'none';
-    });
-}
 // ── 需求2：导出 ──────────────────────────────────────────────────────────
 function exportTableCsv() {
     var table = document.getElementById('importTable');
@@ -294,7 +280,7 @@ document.querySelectorAll('.sw-btn').forEach(function(btn) {
             '<div class="text-center py-4 text-muted">暂无软件记录</div>';
           return;
         }
-        var html = '<table class="table table-sm table-hover mb-0 adm-no-filter"><thead class="table-light"><tr>' +
+        var html = '<table class="table table-sm table-hover mb-0"><thead class="table-light"><tr>' +
           '<th>软件名称</th><th>版本</th><th>发行商</th><th>安装日期</th><th style="width:80px">操作</th></tr></thead><tbody>';
         sw.forEach(function(s) {
           html += '<tr><td>' + escHtml(s.name) + '</td><td class="small text-muted">' +

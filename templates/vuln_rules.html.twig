@@ -145,6 +145,20 @@
             <input type="text" name="notes" class="form-control form-control-sm" placeholder="说明来源/适用场景">
           </div>
           <div class="col-md-12">
+            <label class="form-label small fw-bold">验证判定条件（可选）— 修复后自动校验，不达标循环重下发，超次数转人工</label>
+            <div class="row g-2 mb-1">
+              <div class="col-auto">
+                <label class="form-label small mb-0">最大重试次数</label>
+                <input type="number" min="1" max="10" value="3" id="verify_max_create" class="form-control form-control-sm" style="width:96px">
+              </div>
+              <div class="col-auto align-self-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addVerifyRow('create')"><i class="ti ti-plus me-1"></i>添加判定条件</button>
+              </div>
+            </div>
+            <div id="verify-rows-create"></div>
+            <div class="form-text small">所有判定条件同时满足视为修复成功；任一条不满足则视为未达标，自动重下发修复并重新校验，达到最大重试次数仍不通过则转人工处理。</div>
+          </div>
+          <div class="col-md-12">
             <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-device-floppy me-1"></i>保存规则</button>
           </div>
         </form>
@@ -272,6 +286,20 @@
             <div class="mb-2"><label class="form-label small fw-bold">回滚方案（JSON）</label>
               <textarea id="edit_rollback" name="rollback_plan" class="form-control form-control-sm" rows="2"
                 placeholder='{"type":"software_uninstall","action":{"package_id":123}}'></textarea></div>
+            <div class="mb-2">
+              <label class="form-label small fw-bold">验证判定条件（可选）— 修复后自动校验，不达标循环重下发，超次数转人工</label>
+              <div class="row g-2 mb-1">
+                <div class="col-auto">
+                  <label class="form-label small mb-0">最大重试次数</label>
+                  <input type="number" min="1" max="10" value="3" id="verify_max_edit" class="form-control form-control-sm" style="width:96px">
+                </div>
+                <div class="col-auto align-self-end">
+                  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addVerifyRow('edit')"><i class="ti ti-plus me-1"></i>添加判定条件</button>
+                </div>
+              </div>
+              <div id="verify-rows-edit"></div>
+              <div class="form-text small">所有判定条件同时满足视为修复成功；任一条不满足则自动重下发修复并重新校验，达到最大重试次数仍不通过转人工。</div>
+            </div>
           </div>
           <div class="modal-footer py-2">
             <button type="submit" class="btn btn-sm btn-primary">保存</button>
