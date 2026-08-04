@@ -1,0 +1,121 @@
+<link rel="stylesheet" href="/plugins/admanager/css/adm.css">
+<div class="adm-page">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_new_task.php">
+        <i class="ti ti-send me-1"></i>新建任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy.php">
+        <i class="ti ti-list-check me-1"></i>任务列表
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_package.php">
+        <i class="ti ti-package me-1"></i>软件仓库
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link active" href="/plugins/admanager/front/agent_triggers.php">
+        <i class="ti ti-robot me-1"></i>AI 定时任务
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="/plugins/admanager/front/deploy_config.php">
+        <i class="ti ti-settings-cog me-1"></i>部署配置
+      </a>
+    </li>
+  </ul>
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      <h5 class="mb-0"><i class="ti ti-robot me-1"></i>AI 定时/上线触发任务（{{ triggers|length }}）</h5>
+      <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+        <i class="ti ti-refresh me-1"></i>刷新
+      </button>
+    </div>
+
+    {% if load_error %}
+      <div class="alert alert-danger m-3">加载失败：{{ load_error }}</div>
+    {% elseif triggers is empty %}
+      <div class="card-body text-muted text-center py-4">
+        暂无 AI 安排的定时/上线触发任务<br>
+        <small>在 AI 对话里让它"定时执行 XXX"或"某终端上线时执行 XXX"即可创建</small>
+      </div>
+    {% else %}
+    <div class="table-responsive">
+      <table class="table adm-table table-hover table-sm mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>任务名称</th>
+            <th>触发方式</th>
+            <th>命令 / 动作</th>
+            <th>优先级</th>
+            <th>目标终端</th>
+            <th>创建时间</th>
+            {% if can_write %}<th>操作</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in triggers %}
+          <tr>
+            <td class="fw-bold">{{ t.name }}</td>
+            <td>
+              {% if t.trigger_type == 'scheduled' %}
+                <span class="badge bg-info text-dark"><i class="ti ti-clock"></i> 定时</span>
+                {% if t.scheduled_at %}
+                  <div class="small text-muted">{{ t.scheduled_at|slice(0,16)|replace({'T':' '}) }}</div>
+                {% endif %}
+              {% else %}
+                <span class="badge bg-primary"><i class="ti ti-plug-connected"></i> 终端上线时</span>
+              {% endif %}
+            </td>
+            <td class="small" style="max-width:420px;white-space:pre-wrap;word-break:break-all">
+              {% if t.command %}
+                <code>{{ t.command|slice(0,200) }}{% if t.command|length > 200 %}…{% endif %}</code>
+              {% else %}
+                <span class="text-muted">{{ t.task_type|default('—') }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if t.priority == 'high' or t.priority == 'urgent' %}
+                <span class="badge bg-danger">{{ t.priority }}</span>
+              {% elseif t.priority == 'low' %}
+                <span class="badge bg-secondary">{{ t.priority }}</span>
+              {% else %}
+                <span class="badge bg-light text-dark">{{ t.priority|default('normal') }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-warning text-dark">{{ t.remaining_count }} 台待命中</span>
+              <div class="small text-muted" style="max-width:260px;white-space:normal">
+                {% for c in t.target_clients|slice(0,6) %}
+                  {{ c.hostname }}{% if not loop.last %}、{% endif %}
+                {% endfor %}
+                {% if t.target_clients|length > 6 %}…等{{ t.target_clients|length }}台{% endif %}
+              </div>
+            </td>
+            <td class="small text-muted">
+              {{ t.created_at ? t.created_at|slice(0,16)|replace({'T':' '}) : '—' }}
+            </td>
+            {% if can_write %}
+            <td>
+              <form method="post" onsubmit="return confirm('确定取消「{{ t.name|e('js') }}」这个定时任务？')">
+                <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="_action" value="cancel_trigger">
+                <input type="hidden" name="trigger_key" value="{{ t.key }}">
+                <button type="submit" class="btn btn-xs btn-outline-danger" title="取消">
+                  <i class="ti ti-x"></i>
+                </button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
