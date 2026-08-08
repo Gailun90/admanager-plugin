@@ -238,6 +238,7 @@
         xhr.setRequestHeader('X-Glpi-Csrf-Token', getCsrfToken());
 
         let lastIndex = 0;
+        let sseBuffer = '';        // 缓存跨 onprogress 的不完整 SSE 行
         let resolved = false;
 
         // 移除打字指示器，创建 assistant 消息
@@ -248,62 +249,85 @@
         streamCursor.className = 'stream-cursor';
         bubble.appendChild(streamCursor);
 
-        function processChunk(text) {
-          const lines = text.split('\n');
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const dataStr = line.slice(6).trim();
-            if (!dataStr) continue;
+        // 处理单条完整 SSE 行（以 data: 开头）。任意被网络分片的行先进入
+        // sseBuffer，等后续 onprogress 补齐后再整行解析，避免大段内容（如
+        // 最终报告）被截断后前半段 JSON 解析失败、后半段不以 "data: " 开头
+        // 而被整体丢弃——这正是"长对话最终报告不显示、但日志里有"的根因。
+        function handleSSELine(line) {
+          if (!line.startsWith('data: ')) return;
+          const dataStr = line.slice(6).trim();
+          if (!dataStr) return;
 
-            try {
-              const evt = JSON.parse(dataStr);
+          try {
+            const evt = JSON.parse(dataStr);
 
-              if (evt.type === 'content') {
-                fullContent += evt.content;
-                bubble.innerHTML = formatContent(fullContent);
-                bubble.appendChild(streamCursor);
-                scrollToBottom();
-              }
-              else if (evt.type === 'tool_call') {
-                if (streamCursor.parentNode) streamCursor.remove();
-                addToolCall(evt.tool_name, evt.arguments);
-                bubble.appendChild(streamCursor);
-                scrollToBottom();
-              }
-              else if (evt.type === 'tool_result') {
-                if (streamCursor.parentNode) streamCursor.remove();
-                addToolResult(evt.tool_name, evt.result);
-                bubble.appendChild(streamCursor);
-                scrollToBottom();
-              }
-              else if (evt.type === 'done') {
-                if (streamCursor.parentNode) streamCursor.remove();
-                if (fullContent) {
-                  bubble.innerHTML = formatContent(fullContent);
-                }
-                resolved = true;
-                resolve(fullContent);
-              }
-              else if (evt.type === 'error') {
-                if (streamCursor.parentNode) streamCursor.remove();
-                bubble.innerHTML += '<p class="text-danger">⚠ ' + escapeHtml(evt.content) + '</p>';
-              }
-            } catch (e) {
-              console.warn('SSE parse error:', e, dataStr);
+            if (evt.type === 'content') {
+              fullContent += evt.content;
+              bubble.innerHTML = formatContent(fullContent);
+              bubble.appendChild(streamCursor);
+              scrollToBottom();
             }
+            else if (evt.type === 'tool_call') {
+              if (streamCursor.parentNode) streamCursor.remove();
+              addToolCall(evt.tool_name, evt.arguments);
+              bubble.appendChild(streamCursor);
+              scrollToBottom();
+            }
+            else if (evt.type === 'tool_result') {
+              if (streamCursor.parentNode) streamCursor.remove();
+              addToolResult(evt.tool_name, evt.result);
+              bubble.appendChild(streamCursor);
+              scrollToBottom();
+            }
+            else if (evt.type === 'done') {
+              if (streamCursor.parentNode) streamCursor.remove();
+              if (fullContent) {
+                bubble.innerHTML = formatContent(fullContent);
+              }
+              resolved = true;
+              resolve(fullContent);
+            }
+            else if (evt.type === 'error') {
+              if (streamCursor.parentNode) streamCursor.remove();
+              bubble.innerHTML += '<p class="text-danger">⚠ ' + escapeHtml(evt.content) + '</p>';
+            }
+            // 兜底：未知类型但携带文本内容（如后端新增的 report/message），
+            // 直接并入对话，避免最终报告在日志里有、对话框里却消失
+            else if (evt.content || evt.message || evt.text) {
+              fullContent += (evt.content || evt.message || evt.text);
+              bubble.innerHTML = formatContent(fullContent);
+              bubble.appendChild(streamCursor);
+              scrollToBottom();
+            }
+          } catch (e) {
+            console.warn('SSE parse error:', e, dataStr);
+          }
+        }
+
+        // 累积文本，仅在遇到完整换行时才解析对应行；剩余不完整的行留在
+        // sseBuffer 中等下一次 onprogress 补齐。
+        function feedSSE(text) {
+          sseBuffer += text;
+          let nl;
+          while ((nl = sseBuffer.indexOf('\n')) !== -1) {
+            const rawLine = sseBuffer.slice(0, nl);
+            sseBuffer = sseBuffer.slice(nl + 1);
+            handleSSELine(rawLine);
           }
         }
 
         xhr.onprogress = function() {
           const newText = xhr.responseText.substring(lastIndex);
           lastIndex = xhr.responseText.length;
-          if (newText) processChunk(newText);
+          if (newText) feedSSE(newText);
         };
 
         xhr.onload = function() {
-          // 处理可能遗漏的最后一块数据
-          const remaining = xhr.responseText.substring(lastIndex);
-          if (remaining) processChunk(remaining);
+          // 冲刷可能残留的最后一行（流结束但未带换行符时）
+          if (sseBuffer.length) {
+            handleSSELine(sseBuffer);
+            sseBuffer = '';
+          }
           if (!resolved) {
             resolve(fullContent);
           }

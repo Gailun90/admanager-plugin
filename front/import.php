@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_serial'])) {
         $client_data = null;
         try {
             $api = PluginAdmanagerFastApiClient::getInstance();
-            $result = $api->getClients(1, 200);
+            $result = $api->getClientsAll(200);
             foreach (($result['items'] ?? []) as $c) {
                 if (($c['serial'] ?? '') === $serial) {
                     $client_data = $c;
@@ -211,7 +211,7 @@ $diff_only = isset($_GET['diff']) && $_GET['diff'] == '1';
 $clients = [];
 try {
     $api     = PluginAdmanagerFastApiClient::getInstance();
-    $result  = $api->getClients(1, 200);
+    $result  = $api->getClientsAll(200);
     $clients = $result['items'] ?? [];
 } catch (Exception $e) {
     $error = $error ?: '无法连接 FastAPI：' . $e->getMessage();

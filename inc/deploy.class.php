@@ -93,7 +93,7 @@ class PluginAdmanagerDeploy
     public static function getClients(): array {
         try {
             $res = PluginAdmanagerFastApiClient::getInstance()
-                ->get('/api/export/clients', ['page' => 1, 'limit' => 200]);
+                ->getClientsAll(200);
             $items = $res['items'] ?? [];
             // 统一字段名: client_id → id，前端模板全部用 id
             return array_map(function($c) {

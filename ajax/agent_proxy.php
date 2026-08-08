@@ -95,6 +95,10 @@ case 'chat':
     }
     $body['client_ip'] = $_SERVER['REMOTE_ADDR'] ?? '';
 
+    // 关键修复：鉴权/权限检查已完成，提前释放 PHP 会话文件锁，
+    // 避免 900s SSE 长连接独占锁导致同会话其他 GLPI 页面长时间转圈
+    session_write_close();
+
     // 设置 SSE 响应头
     header('Content-Type: text/event-stream; charset=utf-8');
     header('Cache-Control: no-cache');

@@ -39,7 +39,7 @@ if ($action === 'groups') {
 // 拿全部终端（双面板用）
 if ($action === 'clients') {
     $api  = PluginAdmanagerFastApiClient::getInstance();
-    $data = $api->getClients(1, 200);
+    $data = $api->getClientsAll(200);
     header('Content-Type: application/json');
     $clients = [];
     foreach (($data['items'] ?? []) as $c) {

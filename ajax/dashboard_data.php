@@ -13,7 +13,7 @@ $online_clients = [];
 $recent_tasks = [];
 try {
     $api = PluginAdmanagerFastApiClient::getInstance();
-    $clients = $api->getClients(1, 200);
+    $clients = $api->getClientsAll(200);
     $tasks = $api->get('/api/tasks/admin/list', ['limit' => 10]);
 
     // ★ v4.8: last_seen 5分钟窗口判断在线，单次调用自洽，不依赖 online_serials
