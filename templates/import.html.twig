@@ -432,6 +432,18 @@ function startRemote(clientId, hostname){
         _overlayShow();
         return;
       }
+      if(msg.type === 'remote_unavailable'){
+        // v1.2.12: Agent 端判定当前不可用（无人登录/锁屏 / Tray 未运行 / 连接超时），
+        // 携带明确原因 message，前端直接展示，避免操作者只看到黑屏或长时间等待。
+        console.warn('[Remote] 远程桌面不可用: ' + (msg.message||''));
+        document.getElementById('remoteStatus').className = 'badge bg-warning text-dark';
+        document.getElementById('remoteStatus').textContent = '不可用';
+        _overlayShow('<div class="text-center">'
+          + '<p class="text-warning mb-1">' + escHtml(msg.message || '远程桌面当前不可用') + '</p>'
+          + '<p class="small text-muted mb-0">请确认目标机已登录且未锁屏，且 ITAsset4 Tray 正在运行</p>'
+          + '</div>');
+        return;
+      }
       if(msg.type === 'error'){
         console.error('[Remote] Server error: ' + msg.message);
         _overlayShow('<div class="text-center"><p class="text-danger">' + (msg.message || 'Connection error') + '</p></div>');
@@ -506,6 +518,9 @@ function stopRemote(){
   }
   _remoteWs = null;
   _remoteMouseBound = false;
+  // v1.2.12: 远程桌面结束时刷新页面，避免复用前一个会话窗口/canvas 状态
+  // （点"断开"或关闭子窗口都会走到这里）
+  setTimeout(function(){ location.reload(); }, 200);
 }
 var _remoteMouseBound = false;
 function bindRemoteMouse(canvas) {
