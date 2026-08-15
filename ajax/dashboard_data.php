@@ -43,6 +43,7 @@ echo json_encode([
     'diff_count' => $data['diff_count'] ?? 0,
     'diff_list'  => $data['diff_list']  ?? [],
     'last_sync'  => $data['last_sync']  ?? null,
+    'last_sync_fmt' => PluginAdmanagerTime::fmt($data['last_sync'] ?? null),
     'alert_days' => $data['alert_days'] ?? 7,
     'can_import'   => PluginAdmanagerProfile::canDo('admin', CREATE),
     'online_list'  => $online_clients,

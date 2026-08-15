@@ -37,6 +37,7 @@ if ($action === "status") {
         "ok"            => true,
         "syncing"       => PluginAdmanagerAdCache::isSyncing(),
         "last_sync"     => $info["synced_at"],
+        "last_sync_fmt" => PluginAdmanagerTime::fmt($info["synced_at"] ?? null),
         "user_count"    => PluginAdmanagerAdCache::getUserCount(),
         "computer_count"=> PluginAdmanagerAdCache::getComputerCount(),
         "triggered_by"  => $info["triggered_by"] ?? "",

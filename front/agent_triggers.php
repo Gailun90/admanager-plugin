@@ -11,6 +11,15 @@ $can_write = PluginAdmanagerProfile::canDo('admin', CREATE);
 
 // ── POST 处理 ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
+    // ── CSRF 校验 ──
+    // 模板已渲染 _glpi_csrf_token 隐藏字段，这里必须校验。
+    // 注意：Session::validateCSRF() 读的是 $_POST['_glpi_csrf_token']，
+    // 须传入整个 $_POST 数组，传字符串会恒返回 false 把页面搞死。
+    if (!Session::validateCSRF($_POST)) {
+        Session::addMessageAfterRedirect('CSRF 校验失败，请重试', true, ERROR);
+        Html::redirect($_SERVER['PHP_SELF']);
+    }
+
     $act = $_POST['_action'] ?? '';
 
     if ($act === 'cancel_trigger' && !empty($_POST['trigger_key'])) {
@@ -67,6 +76,13 @@ try {
 } catch (\Throwable $e) {
     $loadError = $e->getMessage();
 }
+
+// 统一时间格式化（GLPI 日期格式 + 本地时区）
+foreach ($triggers as &$t) {
+    $t['scheduled_at_fmt'] = PluginAdmanagerTime::fmt($t['scheduled_at'] ?? null);
+    $t['created_at_fmt']   = PluginAdmanagerTime::fmt($t['created_at']   ?? null);
+}
+unset($t);
 
 $clients = PluginAdmanagerDeploy::getClients();
 

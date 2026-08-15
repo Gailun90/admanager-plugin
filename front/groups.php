@@ -7,30 +7,20 @@ PluginAdmanagerProfile::checkRight('admin', READ);
 
 $can_write = PluginAdmanagerProfile::canDo('admin', CREATE);
 
-// ── 内部 curl helper ──
+// ── 内部 API helper（统一走 PluginAdmanagerFastApiClient，去掉重复的 curl + token 处理）──
 function groups_api(string $method, string $path, array $params = []): array {
-    $cfg = PluginAdmanagerConfig::getFastApiConfig();
-    $url = rtrim($cfg['url'], '/') . $path;
-    if ($params) $url .= '?' . http_build_query($params);
-    $ch = curl_init($url);
-    $opts = [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CUSTOMREQUEST  => $method,
-        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $cfg['token'], 'Content-Length: 0'],
-        CURLOPT_TIMEOUT        => 15,
-    ];
-    if (in_array($method, ['POST', 'PATCH'])) {
-        $opts[CURLOPT_POSTFIELDS] = '';
+    try {
+        $api = PluginAdmanagerFastApiClient::getInstance();
+        return match ($method) {
+            'GET'    => $api->get($path, $params),
+            'POST'   => $api->postQuery($path, $params),
+            'PATCH'  => $api->patch($path, $params),
+            'DELETE' => $api->delete($path, $params),
+            default  => ['ok' => false, 'message' => '不支持的请求方法：' . $method],
+        };
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'message' => '请求失败：' . $e->getMessage()];
     }
-    curl_setopt_array($ch, $opts);
-    $raw  = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-    if ($err) return ['ok' => false, 'message' => 'curl 错误：' . $err];
-    if ($code >= 400) return ['ok' => false, 'message' => "HTTP {$code}: " . substr($raw, 0, 300)];
-    $data = json_decode($raw, true);
-    return $data ?: ['ok' => true, 'message' => '操作完成'];
 }
 
 // ── POST 处理 ──

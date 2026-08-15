@@ -155,6 +155,16 @@ class PluginAdmanagerAdCache
         return array_map(fn($r) => json_decode($r['raw_json'], true) ?: [], iterator_to_array($rows));
     }
 
+    /**
+     * AD 安全组列表（供全局搜索用）。
+     * 当前 adcache 仅缓存 user / computer，未缓存 group，故返回空数组——
+     * 避免 global_search 调用不存在的 getGroups() 抛致命错误。
+     * 后续若接入组缓存，这里改为从缓存/AD 读取即可。
+     */
+    public static function getGroups(): array {
+        return [];
+    }
+
     public static function getUserCount(): int {
         global $DB;
         $r = $DB->request(['COUNT' => 'id', 'FROM' => self::TABLE, 'WHERE' => ['cache_type' => 'user']]);

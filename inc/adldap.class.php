@@ -600,21 +600,23 @@ class PluginAdmanagerAdLdap
         if ($check && ldap_count_entries($this->conn(), $check) > 0)
             throw new \RuntimeException("安全组 '{$name}' 在该 OU 中已存在");
 
-        // groupType = scope | 0x80000000(security)
+        // groupType = scope | 0x80000000(安全组标志)
         $scopeBit = match($scope) {
             'domain_local' => 0x00000004,
             'universal'    => 0x00000008,
             default        => 0x00000002, // global
         };
-        $groupType = (string)($scopeBit | 0x80000000 | 0xFFFFFFFF00000000 & ~0xFFFFFFFF); // signed int
-        // PHP ldap_add 需要 string
-        $groupTypeVal = (string)($scopeBit - 2147483648); // 转为有符号32位
+        // AD groupType 是 32 位有符号整数：安全组标志占符号位（0x80000000 = -2147483648）。
+        // 先在 64 位无符号域做 OR，再折叠回 32 位有符号，避免 PHP 32/64 位与整型字面量溢出差异
+        // （此前有两行互相矛盾的死代码，已删除）。
+        $unsigned = ($scopeBit | 0x80000000) & 0xFFFFFFFF;
+        $groupTypeVal = $unsigned > 0x7FFFFFFF ? $unsigned - 0x100000000 : $unsigned;
 
         $entry = [
             'objectClass'    => ['top', 'group'],
             'cn'             => $name,
             'sAMAccountName' => $name,
-            'groupType'      => [(string)($scopeBit | -2147483648)],
+            'groupType'      => [(string)$groupTypeVal],
         ];
         if ($description) $entry['description'] = $description;
         if ($mail)        $entry['mail']         = $mail;

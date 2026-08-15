@@ -82,7 +82,7 @@
               {% if t.trigger_type == 'scheduled' %}
                 <span class="badge bg-info text-dark"><i class="ti ti-clock"></i> 定时</span>
                 {% if t.scheduled_at %}
-                  <div class="small text-muted">{{ t.scheduled_at|slice(0,16)|replace({'T':' '}) }}</div>
+                  <div class="small text-muted">{{ t.scheduled_at_fmt ?? '—' }}</div>
                 {% endif %}
               {% else %}
                 <span class="badge bg-primary"><i class="ti ti-plug-connected"></i> 终端上线时</span>
@@ -115,7 +115,7 @@
               </div>
             </td>
             <td class="small text-muted">
-              {{ t.created_at ? t.created_at|slice(0,16)|replace({'T':' '}) : '—' }}
+              {{ t.created_at_fmt }}
             </td>
             {% if can_write %}
             <td>

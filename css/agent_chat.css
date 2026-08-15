@@ -637,3 +637,66 @@
         max-width: 90%;
     }
 }
+
+/* ── 审批确认弹窗（复用插件设计令牌，遵循 GLPI 规范） ──
+   原则：
+   1) 不写裸 Bootstrap 工具类（如 .small）——会与 GLPI 核心碰撞导致版面塌陷；
+   2) 不写 bg-warning-subtle（仅 Bootstrap 5.3+ 才有）——GLPI 自带 Bootstrap 版本不定；
+   3) 配色/圆角/边框统一走插件已在全局使用的 --adm-* 令牌，与对话区视觉语言一致；
+   4) 参数 JSON 块直接复用既有 .agent-tool-call-args（等宽字体+圆角+自动换行）。*/
+:root {
+    --adm-danger: #d9534f;        /* 与 .agent-tool-result.has-error 同色 */
+    --adm-warn-bg: #fff3cd;       /* 警告底色（亮色主题下） */
+    --adm-warn-fg: #664d03;
+}
+
+.adm-approval-modal .modal-header {
+    background-color: var(--adm-warn-bg, #fff3cd);
+    color: var(--adm-warn-fg, #664d03);
+    border-bottom: 1px solid var(--adm-border, #d1d0c8);
+}
+
+.adm-approval-modal .modal-title {
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.adm-approval-modal .adm-hint-text {
+    color: var(--adm-text-muted, #787872);
+    font-size: .875em;
+    margin-bottom: 8px;
+}
+
+.adm-approval-modal .adm-risk-item {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    background: var(--adm-surface, #fff);
+    border: 1px solid var(--adm-border, #d1d0c8);
+    border-radius: 8px;
+}
+
+.adm-approval-modal .adm-risk-item:last-child {
+    margin-bottom: 0;
+}
+
+.adm-approval-modal .adm-risk-name {
+    font-weight: 700;
+    color: var(--adm-danger, #d9534f);
+    font-size: 14px;
+}
+
+.adm-approval-modal .adm-risk-desc {
+    color: var(--adm-text-muted, #787872);
+    font-size: .875em;
+    margin: 2px 0 6px;
+}
+
+/* 复用插件既有代码块样式，仅限制高度防溢出 */
+.adm-approval-modal .agent-tool-call-args {
+    max-height: 160px;
+    overflow: auto;
+    margin-bottom: 0;
+}

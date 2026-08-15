@@ -16,10 +16,7 @@
   const PROXY_BASE = '/plugins/admanager/ajax/agent_proxy.php';
 
   // ── CSRF Token（GLPI 要求每次 POST/DELETE 携带）──
-  function getCsrfToken() {
-    const el = document.getElementById('agent-csrf');
-    return el ? el.value : '';
-  }
+  // 统一走 adm-utils.js 的 AdManager.getCsrfToken()（多源读取 #agent-csrf 等）
 
   // ── 状态 ──
   let chatHistory = [];       // [{role, content}]
@@ -33,6 +30,11 @@
   const $input = document.getElementById('agent-input');
   const $sendBtn = document.getElementById('agent-send-btn');
   const $clearBtn = document.getElementById('agent-clear-btn');
+  const $stopBtn = document.getElementById('agent-stop-btn');
+  // 停止生成：点击中断当前 XHR 流（makeStopHandler 暴露纯逻辑便于测试）
+  if ($stopBtn) {
+    $stopBtn.addEventListener('click', makeStopHandler(() => (abortController ? abortController._xhr : null)));
+  }
   const $status = document.getElementById('agent-status');
   const $refs = document.getElementById('agent-references');
   const $mentions = document.getElementById('agent-mentions');
@@ -207,162 +209,168 @@
   }
 
   // ── 发送消息 ──
+  let currentSessionId = null;
+
+  // [SSE-PARSER-BEGIN] — 纯函数：带行缓冲的 SSE 解析器（Node 测试可直接抽取）
+  // 修复"AI 回答被吞"：XHR onprogress 的网络分片会在任意字节处切断 data: 行。
+  // 旧实现按 '\n' 切分每个分片并直接 JSON.parse —— 跨分片的那一截前半段
+  // parse 失败被丢、后半段不以 'data: ' 开头被跳过，导致整条 content 事件丢失。
+  // 这里把原始文本累积进 buffer，只处理"以 \n 结尾的完整行"，不完整的尾部留给
+  // 下一个分片；流结束（flush）时再处理可能不带换行的最后一行。
+  function createSSEParser(dispatch) {
+    let buffer = '';
+    function handleLine(line) {
+      if (!line.startsWith('data: ')) return;
+      const dataStr = line.slice(6).trim();
+      if (!dataStr) return;
+      let evt;
+      try { evt = JSON.parse(dataStr); }
+      catch (e) { console.warn('SSE parse error:', e, dataStr); return; }
+      dispatch(evt);
+    }
+    return {
+      push(text) {
+        buffer += text;
+        let idx;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          handleLine(buffer.slice(0, idx));
+          buffer = buffer.slice(idx + 1);
+        }
+      },
+      flush() {
+        if (buffer.trim()) handleLine(buffer);
+        buffer = '';
+      },
+    };
+  }
+  // [SSE-PARSER-END]
+
+  // [ABORT-HELPER-BEGIN]
+  // 停止按钮处理器工厂：点击时中断当前活跃的 XHR 流。
+  // 抽成纯函数便于 Node 单测（无需整个 DOM / XMLHttpRequest）。
+  function makeStopHandler(getActiveXhr) {
+    return function () {
+      const x = getActiveXhr();
+      if (x && typeof x.abort === 'function') {
+        x.abort();
+      }
+    };
+  }
+  // [ABORT-HELPER-END]
+
+  // 通用 SSE 流式对话（正常提问 / 审批回传 共用）
+  function streamChat(payload) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', PROXY_BASE + '?action=chat');
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('X-Glpi-Csrf-Token', AdManager.getCsrfToken());
+
+      let lastIndex = 0;
+      let resolved = false;
+
+      removeTypingIndicator();
+      const bubble = addMessage('assistant', '');
+      let fullContent = '';
+      let streamCursor = document.createElement('span');
+      streamCursor.className = 'stream-cursor';
+      bubble.appendChild(streamCursor);
+
+      const parser = createSSEParser(function(evt) {
+        if (evt.type === 'content') {
+          fullContent += evt.content;
+          bubble.innerHTML = formatContent(fullContent);
+          bubble.appendChild(streamCursor);
+          scrollToBottom();
+        }
+        else if (evt.type === 'tool_call') {
+          if (streamCursor.parentNode) streamCursor.remove();
+          addToolCall(evt.tool_name, evt.arguments);
+          bubble.appendChild(streamCursor);
+          scrollToBottom();
+        }
+        else if (evt.type === 'tool_result') {
+          if (streamCursor.parentNode) streamCursor.remove();
+          addToolResult(evt.tool_name, evt.result);
+          bubble.appendChild(streamCursor);
+          scrollToBottom();
+        }
+        else if (evt.type === 'session') {
+          currentSessionId = evt.session_id;
+        }
+        else if (evt.type === 'confirmation_required') {
+          if (streamCursor.parentNode) streamCursor.remove();
+          showApprovalModal(evt, bubble);
+        }
+        else if (evt.type === 'done') {
+          if (streamCursor.parentNode) streamCursor.remove();
+          if (fullContent) bubble.innerHTML = formatContent(fullContent);
+          resolved = true;
+          resolve(fullContent);
+        }
+        else if (evt.type === 'error') {
+          if (streamCursor.parentNode) streamCursor.remove();
+          bubble.innerHTML += '<p class="text-danger">⚠ ' + escapeHtml(evt.content) + '</p>';
+        }
+      });
+
+      xhr.onprogress = function() {
+        const newText = xhr.responseText.substring(lastIndex);
+        lastIndex = xhr.responseText.length;
+        if (newText) parser.push(newText);
+      };
+      xhr.onload = function() {
+        parser.push(xhr.responseText.substring(lastIndex));
+        parser.flush();  // 处理末尾可能不带换行的最后一行
+        if (!resolved) resolve(fullContent);
+      };
+      xhr.onerror = function() {
+        removeTypingIndicator();
+        addMessage('assistant', '❌ 网络错误: ' + (xhr.statusText || '连接失败'));
+        setStatus('错误', 'error');
+        resolve(null);
+      };
+      xhr.ontimeout = function() {
+        if (!resolved) resolve(fullContent || null);
+      };
+      // 用户点击"停止生成"→ xhr.abort() 触发本处理器，reject 让 sendMessage
+      // 进入 catch 的 AbortError 分支，显示"（已取消）"。
+      xhr.onabort = function() {
+        if (!resolved) {
+          resolved = true;
+          reject(new DOMException('Aborted', 'AbortError'));
+        }
+      };
+      xhr.timeout = 300000; // 5 分钟超时
+      xhr.send(JSON.stringify(payload));
+      abortController._xhr = xhr;
+    });
+  }
+
   async function sendMessage() {
     const message = $input.value.trim();
     if (!message || isStreaming) return;
 
-    // 显示用户消息
     addMessage('user', message);
     chatHistory.push({ role: 'user', content: message });
-
-    // 清空输入
     $input.value = '';
     $input.style.height = 'auto';
     updateReferencesDisplay();
 
-    // 显示打字指示器
     addTypingIndicator();
     isStreaming = true;
     setStatus('思考中…', 'streaming');
     $sendBtn.disabled = true;
-
+    if ($stopBtn) $stopBtn.classList.remove('d-none');
     abortController = new AbortController();
-
     try {
-      // GLPI 覆写了全局 fetch，对非 JSON 响应（SSE）会返回假 Response 对象（无 text()/body）。
-      // 改用 XMLHttpRequest 处理 SSE 流式响应。
-      const sseData = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', PROXY_BASE + '?action=chat');
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('X-Glpi-Csrf-Token', getCsrfToken());
-
-        let lastIndex = 0;
-        let sseBuffer = '';        // 缓存跨 onprogress 的不完整 SSE 行
-        let resolved = false;
-
-        // 移除打字指示器，创建 assistant 消息
-        removeTypingIndicator();
-        const bubble = addMessage('assistant', '');
-        let fullContent = '';
-        let streamCursor = document.createElement('span');
-        streamCursor.className = 'stream-cursor';
-        bubble.appendChild(streamCursor);
-
-        // 处理单条完整 SSE 行（以 data: 开头）。任意被网络分片的行先进入
-        // sseBuffer，等后续 onprogress 补齐后再整行解析，避免大段内容（如
-        // 最终报告）被截断后前半段 JSON 解析失败、后半段不以 "data: " 开头
-        // 而被整体丢弃——这正是"长对话最终报告不显示、但日志里有"的根因。
-        function handleSSELine(line) {
-          if (!line.startsWith('data: ')) return;
-          const dataStr = line.slice(6).trim();
-          if (!dataStr) return;
-
-          try {
-            const evt = JSON.parse(dataStr);
-
-            if (evt.type === 'content') {
-              fullContent += evt.content;
-              bubble.innerHTML = formatContent(fullContent);
-              bubble.appendChild(streamCursor);
-              scrollToBottom();
-            }
-            else if (evt.type === 'tool_call') {
-              if (streamCursor.parentNode) streamCursor.remove();
-              addToolCall(evt.tool_name, evt.arguments);
-              bubble.appendChild(streamCursor);
-              scrollToBottom();
-            }
-            else if (evt.type === 'tool_result') {
-              if (streamCursor.parentNode) streamCursor.remove();
-              addToolResult(evt.tool_name, evt.result);
-              bubble.appendChild(streamCursor);
-              scrollToBottom();
-            }
-            else if (evt.type === 'done') {
-              if (streamCursor.parentNode) streamCursor.remove();
-              if (fullContent) {
-                bubble.innerHTML = formatContent(fullContent);
-              }
-              resolved = true;
-              resolve(fullContent);
-            }
-            else if (evt.type === 'error') {
-              if (streamCursor.parentNode) streamCursor.remove();
-              bubble.innerHTML += '<p class="text-danger">⚠ ' + escapeHtml(evt.content) + '</p>';
-            }
-            // 兜底：未知类型但携带文本内容（如后端新增的 report/message），
-            // 直接并入对话，避免最终报告在日志里有、对话框里却消失
-            else if (evt.content || evt.message || evt.text) {
-              fullContent += (evt.content || evt.message || evt.text);
-              bubble.innerHTML = formatContent(fullContent);
-              bubble.appendChild(streamCursor);
-              scrollToBottom();
-            }
-          } catch (e) {
-            console.warn('SSE parse error:', e, dataStr);
-          }
-        }
-
-        // 累积文本，仅在遇到完整换行时才解析对应行；剩余不完整的行留在
-        // sseBuffer 中等下一次 onprogress 补齐。
-        function feedSSE(text) {
-          sseBuffer += text;
-          let nl;
-          while ((nl = sseBuffer.indexOf('\n')) !== -1) {
-            const rawLine = sseBuffer.slice(0, nl);
-            sseBuffer = sseBuffer.slice(nl + 1);
-            handleSSELine(rawLine);
-          }
-        }
-
-        xhr.onprogress = function() {
-          const newText = xhr.responseText.substring(lastIndex);
-          lastIndex = xhr.responseText.length;
-          if (newText) feedSSE(newText);
-        };
-
-        xhr.onload = function() {
-          // 冲刷可能残留的最后一行（流结束但未带换行符时）
-          if (sseBuffer.length) {
-            handleSSELine(sseBuffer);
-            sseBuffer = '';
-          }
-          if (!resolved) {
-            resolve(fullContent);
-          }
-        };
-
-        xhr.onerror = function() {
-          removeTypingIndicator();
-          addMessage('assistant', '❌ 网络错误: ' + (xhr.statusText || '连接失败'));
-          setStatus('错误', 'error');
-          resolve(null);
-        };
-
-        xhr.ontimeout = function() {
-          if (!resolved) {
-            resolve(fullContent || null);
-          }
-        };
-
-        xhr.timeout = 300000; // 5 分钟超时
-        xhr.send(JSON.stringify({
-          message: message,
-          history: chatHistory.slice(-10),
-          references: references.map(r => ({ type: r.type, id: r.id, name: r.name })),
-        }));
-
-        // 保存 abortController 引用以便取消
-        abortController._xhr = xhr;
+      const sseData = await streamChat({
+        message: message,
+        history: chatHistory.slice(-10),
+        references: references.map(r => ({ type: r.type, id: r.id, name: r.name })),
       });
-
-      // 保存到历史
-      if (sseData) {
-        chatHistory.push({ role: 'assistant', content: sseData });
-      }
+      if (sseData) chatHistory.push({ role: 'assistant', content: sseData });
       setStatus('就绪', 'ready');
-
     } catch (err) {
       removeTypingIndicator();
       if (err && err.name === 'AbortError') {
@@ -375,7 +383,87 @@
     } finally {
       isStreaming = false;
       $sendBtn.disabled = false;
+      if ($stopBtn) $stopBtn.classList.add('d-none');
       abortController = null;
+    }
+  }
+
+  // 用户确认/拒绝高危或批量操作后，回传后端恢复执行
+  async function sendApproval(decision) {
+    if (isStreaming) return;
+    addTypingIndicator();
+    isStreaming = true;
+    setStatus('执行中…', 'streaming');
+    $sendBtn.disabled = true;
+    if ($stopBtn) $stopBtn.classList.remove('d-none');
+    abortController = new AbortController();
+    try {
+      const sseData = await streamChat({
+        confirm: { session_id: currentSessionId, decision: decision },
+        message: '',
+        history: [],
+        references: [],
+      });
+      if (sseData) chatHistory.push({ role: 'assistant', content: sseData });
+      setStatus('就绪', 'ready');
+    } catch (err) {
+      removeTypingIndicator();
+      addMessage('assistant', '❌ 网络错误: ' + err.message);
+      setStatus('错误', 'error');
+    } finally {
+      isStreaming = false;
+      $sendBtn.disabled = false;
+      if ($stopBtn) $stopBtn.classList.add('d-none');
+      abortController = null;
+    }
+  }
+
+  // 高危/批量操作确认弹窗
+  function showApprovalModal(evt, bubble) {
+    const risks = evt.risks || [];
+    if (window.bootstrap) {
+      // 复用插件样式与配色：容器挂 .adm-approval-modal（agent_chat.css 内定义，走 --adm-* 令牌），
+      // 参数块直接复用既有 .agent-tool-call-args；不写裸 .small / bg-warning-subtle，
+      // 避免与 GLPI 核心/主题碰撞或依赖 Bootstrap 5.3+。
+      const rows = risks.map(r => {
+        const argsStr = escapeHtml(JSON.stringify(r.args, null, 2));
+        return '<div class="adm-risk-item">'
+          + '<div class="adm-risk-name">' + escapeHtml(r.tool_name) + '</div>'
+          + '<div class="adm-risk-desc">' + escapeHtml(r.risk) + '</div>'
+          + '<pre class="agent-tool-call-args">' + argsStr + '</pre></div>';
+      }).join('');
+      const modalId = 'agentApprovalModal';
+      const old = document.getElementById(modalId);
+      if (old) old.remove();
+      const html =
+        '<div class="modal fade adm-approval-modal" id="' + modalId + '" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">'
+        + '<div class="modal-dialog modal-dialog-centered modal-lg">'
+        + '<div class="modal-content">'
+        + '<div class="modal-header">'
+        + '<h5 class="modal-title">⚠ 请确认高危/批量操作</h5>'
+        + '<button type="button" class="btn-close" id="approvalClose" aria-label="关闭"></button>'
+        + '</div>'
+        + '<div class="modal-body"><p class="adm-hint-text">以下操作可能影响生产环境，确认后才会执行：</p>' + rows + '</div>'
+        + '<div class="modal-footer">'
+        + '<button type="button" class="btn btn-outline-secondary" id="approvalCancel">取消</button>'
+        + '<button type="button" class="btn btn-danger" id="approvalReject">拒绝</button>'
+        + '<button type="button" class="btn btn-success" id="approvalApprove">确认执行</button>'
+        + '</div></div></div></div>';
+      document.body.insertAdjacentHTML('beforeend', html);
+      const modalEl = document.getElementById(modalId);
+      $input.disabled = true;
+      const bsModal = new bootstrap.Modal(modalEl);
+      bsModal.show();
+      const cancelModal = () => { bootstrap.Modal.getInstance(modalEl).hide(); };
+      document.getElementById('approvalApprove').onclick = () => { bootstrap.Modal.getInstance(modalEl).hide(); sendApproval('approve'); };
+      document.getElementById('approvalReject').onclick = () => { bootstrap.Modal.getInstance(modalEl).hide(); sendApproval('reject'); };
+      document.getElementById('approvalCancel').onclick = cancelModal;
+      document.getElementById('approvalClose').onclick = cancelModal;
+      modalEl.addEventListener('hidden.bs.modal', () => { $input.disabled = false; modalEl.remove(); });
+    } else {
+      const summary = risks.map(r => r.tool_name + ': ' + r.risk).join('\n');
+      const ok = window.confirm('⚠ 高危/批量操作确认：\n' + summary + '\n\n确定=执行，取消=拒绝');
+      sendApproval(ok ? 'approve' : 'reject');
     }
   }
 
@@ -604,7 +692,7 @@
         const resp = await fetch(PROXY_BASE + '?action=upload', {
           method: 'POST',
           headers: {
-            'X-Glpi-Csrf-Token': getCsrfToken(),
+            'X-Glpi-Csrf-Token': AdManager.getCsrfToken(),
           },
           body: formData,
         });
@@ -669,10 +757,14 @@
         ? (f.size / 1048576).toFixed(1) + ' MB'
         : (f.size / 1024).toFixed(0) + ' KB';
 
-      const dateStr = new Date(f.modified).toLocaleString('zh-CN', {
-        month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit',
-      });
+      // 统一时间格式（GLPI 风格 Y-m-d H:i:s，本地时区），避免 toLocaleString 的本地化歧义
+      const dateStr = (function () {
+        const d = new Date(f.modified);
+        if (isNaN(d.getTime())) return '—';
+        const p = function (x) { return (x < 10 ? '0' : '') + x; };
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+             + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+      })();
 
       el.innerHTML = `
         <div class="ws-file-icon ${iconInfo.cls}"><i class="ti ${iconInfo.icon}"></i></div>
@@ -713,7 +805,7 @@
           await fetch(PROXY_BASE + '?action=delete&filename=' + encodeURIComponent(f.name), {
             method: 'DELETE',
             headers: {
-              'X-Glpi-Csrf-Token': getCsrfToken(),
+              'X-Glpi-Csrf-Token': AdManager.getCsrfToken(),
             },
           });
           loadFiles();
@@ -738,7 +830,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Glpi-Csrf-Token': getCsrfToken(),
+          'X-Glpi-Csrf-Token': AdManager.getCsrfToken(),
         },
         body: JSON.stringify({ filename: selectedFile, question: question }),
       });
@@ -807,7 +899,7 @@
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'X-Glpi-Csrf-Token': getCsrfToken(),
+            'X-Glpi-Csrf-Token': AdManager.getCsrfToken(),
           },
           body: JSON.stringify({ custom_prompt: $promptCustom.value }),
         });

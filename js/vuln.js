@@ -5,8 +5,6 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  function csrf() { return ($('#vuln-csrf') || {}).value || ''; }
-
   function api(params, method = 'GET') {
     let url = '/plugins/admanager/ajax/vuln_data.php';
     const opt = { method, headers: { 'Accept': 'application/json' } };
@@ -14,21 +12,18 @@
       url += '?' + new URLSearchParams(params).toString();
     } else {
       const body = new URLSearchParams();
-      body.append('_glpi_csrf_token', csrf());
+      body.append('_glpi_csrf_token', AdManager.getCsrfToken());
       for (const [k, v] of Object.entries(params)) {
         if (Array.isArray(v)) v.forEach(x => body.append(k, x));
         else body.append(k, v);
       }
       opt.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-      opt.headers['X-Glpi-Csrf-Token'] = csrf();  // 全局 CSRF 校验（inc/includes.php AJAX 分支用 header 取值）
+      opt.headers['X-Glpi-Csrf-Token'] = AdManager.getCsrfToken();  // 全局 CSRF 校验（inc/includes.php AJAX 分支用 header 取值）
       opt.body = body.toString();
     }
     return fetch(url, opt).then(r => r.json()).then(d => {
-        // 每次响应都带回新的一次性 CSRF token，刷新页面级 #vuln-csrf（GLPI 合规做法）
-        if (d && d._csrf) {
-            const el = document.getElementById('vuln-csrf');
-            if (el) el.value = d._csrf;
-        }
+        // 每次响应都带回新的一次性 CSRF token，刷新页面级字段（GLPI 合规做法）
+        AdManager.renewCsrf(d);
         return d;
     });
   }
@@ -432,8 +427,16 @@
           api.close();
         }
       };
-      input.addEventListener('focus', api.open);
+      // 聚焦即清空预设文本并展开全部候选项：无需先手动删除预设文字才能选择终端/安装包
+      input.addEventListener('focus', function () {
+        input.value = '';
+        api.open();
+      });
       input.addEventListener('input', api.open);
+      // 失焦且未重新选择时，恢复显示当前已选值（仅视觉，不改变 select.value）
+      input.addEventListener('blur', function () {
+        setTimeout(function () { if (document.activeElement !== input) api.sync(); }, 120);
+      });
       input.addEventListener('keydown', function (e) {
         if (e.key === 'ArrowDown') { e.preventDefault(); api.move(1); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); api.move(-1); }

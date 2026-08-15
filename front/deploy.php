@@ -11,7 +11,13 @@ $can_write = PluginAdmanagerProfile::canDo('admin', CREATE);
 // ── AJAX：任务明细目标列表 ──
 if (isset($_GET['action']) && $_GET['action'] === 'targets' && isset($_GET['task_id'])) {
     header('Content-Type: application/json');
-    echo json_encode(PluginAdmanagerDeploy::getTaskTargets((int)$_GET['task_id']));
+    $rows = PluginAdmanagerDeploy::getTaskTargets((int)$_GET['task_id']);
+    // 统一时间格式化（GLPI 日期格式 + 本地时区）
+    foreach ($rows as &$r) {
+        $r['executed_at_fmt'] = PluginAdmanagerTime::fmt($r['executed_at'] ?? null);
+    }
+    unset($r);
+    echo json_encode($rows);
     exit;
 }
 
@@ -51,6 +57,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $can_write) {
 
 // ── 数据准备 ──
 $tasks = PluginAdmanagerDeploy::getTasks(30);
+// 统一时间格式化（GLPI 日期格式 + 本地时区），供模板 _fmt 字段使用
+foreach ($tasks as &$t) {
+    $t['created_at_fmt'] = PluginAdmanagerTime::fmt($t['created_at'] ?? null);
+}
+unset($t);
 
 Html::header('任务列表', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'deploy');
 

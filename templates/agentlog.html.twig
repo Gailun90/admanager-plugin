@@ -21,26 +21,41 @@
 
     <div class="card-body">
       {# ── 筛选栏 ── #}
-      <form method="get" class="row g-2 mb-3">
-        <div class="col-md-3">
-          <input type="text" name="operator" class="form-control form-control-sm" placeholder="操作者" value="{{ filters.operator }}">
+      <form method="get" class="mb-3">
+        {# ── 日期范围筛选（解决时钟回拨后日志"停更"的查看问题） ── #}
+        <div class="row g-2 mb-2 align-items-end">
+          <div class="col-md-auto">
+            <label class="form-label small mb-0 text-muted">起始日期</label>
+            <input type="date" name="start_date" class="form-control form-control-sm" value="{{ filters.start_date }}">
+          </div>
+          <div class="col-md-auto">
+            <label class="form-label small mb-0 text-muted">结束日期</label>
+            <input type="date" name="end_date" class="form-control form-control-sm" value="{{ filters.end_date }}">
+          </div>
+          <div class="col-md-auto">
+            <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-search me-1"></i>查询</button>
+          </div>
+          <div class="col-md-auto">
+            <a href="/plugins/admanager/front/agentlog.php" class="btn btn-sm btn-outline-secondary">重置</a>
+          </div>
         </div>
-        <div class="col-md-2">
-          <select name="role" class="form-select form-select-sm">
-            <option value="">全部角色</option>
-            <option value="user" {{ filters.role == 'user' ? 'selected' }}>用户</option>
-            <option value="assistant" {{ filters.role == 'assistant' ? 'selected' }}>AI 回复</option>
-            <option value="tool_call" {{ filters.role == 'tool_call' ? 'selected' }}>工具调用</option>
-            <option value="tool_result" {{ filters.role == 'tool_result' ? 'selected' }}>工具结果</option>
-            <option value="error" {{ filters.role == 'error' ? 'selected' }}>错误</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <input type="text" name="session_id" class="form-control form-control-sm" placeholder="会话 ID" value="{{ filters.session_id }}">
-        </div>
-        <div class="col-md-3 d-flex gap-2">
-          <button type="submit" class="btn btn-sm btn-primary"><i class="ti ti-search me-1"></i>查询</button>
-          <a href="/plugins/admanager/front/agentlog.php" class="btn btn-sm btn-outline-secondary">重置</a>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <input type="text" name="operator" class="form-control form-control-sm" placeholder="操作者" value="{{ filters.operator }}">
+          </div>
+          <div class="col-md-2">
+            <select name="role" class="form-select form-select-sm">
+              <option value="">全部角色</option>
+              <option value="user" {{ filters.role == 'user' ? 'selected' }}>用户</option>
+              <option value="assistant" {{ filters.role == 'assistant' ? 'selected' }}>AI 回复</option>
+              <option value="tool_call" {{ filters.role == 'tool_call' ? 'selected' }}>工具调用</option>
+              <option value="tool_result" {{ filters.role == 'tool_result' ? 'selected' }}>工具结果</option>
+              <option value="error" {{ filters.role == 'error' ? 'selected' }}>错误</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <input type="text" name="session_id" class="form-control form-control-sm" placeholder="会话 ID" value="{{ filters.session_id }}">
+          </div>
         </div>
       </form>
 

@@ -80,7 +80,7 @@
                 <td class="small">{{ c.dnshostname ?? '—' }}</td>
                 <td><span class="badge bg-info">{{ c.operatingsystem ?? '—' }}</span></td>
                 <td class="small text-muted">{{ c.description ?? '—' }}</td>
-                <td class="small">{% if c.last_logon_unix is defined %}{{ c.last_logon_unix|date('Y-m-d H:i') }}{% else %}—{% endif %}</td>
+                <td class="small">{{ c.last_logon_fmt ?? '—' }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -113,7 +113,7 @@
                 <td><span class="badge bg-secondary">{{ c.os_name ?? '' }} {{ c.os_version ?? '' }}</span></td>
                 <td class="small">{{ c.cpu ?? '—' }}</td>
                 <td class="small">{{ c.memory_gb is defined ? c.memory_gb~'GB' : '—' }}</td>
-                <td class="small">{{ c.last_seen ?? '—' }}</td>
+                <td class="small">{{ c.last_seen_fmt ?? '—' }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -141,7 +141,7 @@
                 <td class="small">{{ c.model ?? '—' }}</td>
                 <td><span class="badge bg-success">{{ c.os_name ?? '—' }}</span></td>
                 <td class="small">{{ c.contact ?? '—' }}</td>
-                <td class="small">{{ c.date_mod }}</td>
+                <td class="small">{{ c.date_mod_fmt }}</td>
               </tr>
               {% endfor %}
             </tbody>

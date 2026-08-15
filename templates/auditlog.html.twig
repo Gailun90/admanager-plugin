@@ -10,7 +10,7 @@
       <form method="get" class="d-flex align-items-end flex-nowrap gap-2">
         <div class="ad-search-input">
           <label class="form-label small fw-bold">操作类型</label>
-          <select name="action_type" class="form-select">
+          <select name="action_type" class="form-select form-select-sm">
             <option value="">— 全部 —</option>
             {% for k,v in action_labels %}
               <option value="{{ k }}" {{ filters.action_type == k ? 'selected' : '' }}>{{ v }}</option>
@@ -61,7 +61,7 @@
         <tbody>
           {% for log in logs %}
           <tr>
-            <td class="small text-muted text-nowrap">{{ log.date_mod }}</td>
+            <td class="small text-muted text-nowrap">{{ log.date_mod_fmt }}</td>
             <td class="small">
               {% if log.users_id > 0 %}
                 <span class="badge bg-secondary">{{ log.user_name }}</span>

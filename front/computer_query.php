@@ -64,6 +64,20 @@ try {
     $error = '查询失败：' . $e->getMessage();
 }
 
+// 统一时间格式化（GLPI 日期格式 + 本地时区）
+foreach ($results['ad'] as &$c) {
+    $c['last_logon_fmt'] = PluginAdmanagerTime::fmt($c['last_logon_unix'] ?? null);
+}
+unset($c);
+foreach ($results['fastapi'] as &$c) {
+    $c['last_seen_fmt'] = PluginAdmanagerTime::fmt($c['last_seen'] ?? null);
+}
+unset($c);
+foreach ($results['glpi_computers'] as &$c) {
+    $c['date_mod_fmt'] = PluginAdmanagerTime::fmt($c['date_mod'] ?? null);
+}
+unset($c);
+
 Html::header('计算机查询', $_SERVER['PHP_SELF'], 'plugins', 'admanager', 'computer_query');
 
 \Glpi\Application\View\TemplateRenderer::getInstance()->display('@admanager/computer_query.html.twig', [

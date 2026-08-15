@@ -36,7 +36,7 @@
     <div class="d-flex align-items-center gap-2 small border-top pt-1 mt-1">
       <span class="fw-semibold">{{ fu.filename }}</span>
       <span class="text-muted">{{ fu.error }}</span>
-      <span class="text-muted ms-auto">{{ fu.ts|slice(0,19)|replace({'T':' '}) }}</span>
+      <span class="text-muted ms-auto">{{ fu.ts_fmt }}</span>
       {% if can_write %}
       <form method="post" class="d-inline" onsubmit="return confirm('清除这个失败的上传？磁盘文件也会一起删掉，需要的话重新上传即可。')">
         <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token }}">

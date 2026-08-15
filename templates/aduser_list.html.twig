@@ -305,7 +305,7 @@
               {% else %}<span class="badge bg-success">正常</span>{% endif %}
               {% if u._status_from_cache ?? false %}<span class="badge bg-light text-muted border ms-1" title="AD 实时查询失败，显示缓存状态">缓存</span>{% endif %}
             </td>
-            <td class="small text-muted">{% if u.last_logon_unix is defined %}{{ u.last_logon_unix|date('Y-m-d') }}{% else %}—{% endif %}</td>
+            <td class="small text-muted">{{ u.last_logon_fmt ?? '—' }}</td>
             <td>
               <div class="btn-group btn-group-sm">
                 {% if can_write %}
@@ -387,8 +387,8 @@
             <tr><td class="text-muted">距今天数</td><td>{% if detail_user.last_logon_days is defined %}{{ detail_user.last_logon_days }} 天前{% else %}—{% endif %}</td></tr>
             <tr><td class="text-muted">密码最后设置</td><td>{{ detail_user.pwdlastset_fmt ?? '—' }}</td></tr>
             <tr><td class="text-muted">密码已用天数</td><td>{% if detail_user.pwd_age_days is defined %}{{ detail_user.pwd_age_days }} 天{% else %}—{% endif %}</td></tr>
-            <tr><td class="text-muted">创建时间</td><td>{{ detail_user.whencreated ?? '—' }}</td></tr>
-            <tr><td class="text-muted">修改时间</td><td>{{ detail_user.whenchanged ?? '—' }}</td></tr>
+            <tr><td class="text-muted">创建时间</td><td>{{ detail_user.whencreated_fmt ?? '—' }}</td></tr>
+            <tr><td class="text-muted">修改时间</td><td>{{ detail_user.whenchanged_fmt ?? '—' }}</td></tr>
           </table>
 </div>
         </div>

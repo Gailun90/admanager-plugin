@@ -239,7 +239,8 @@
       document.getElementById('kpiFailed').textContent = s.failed_tasks || 0;
       document.getElementById('kpiOnlineSub').textContent = (d.online_list||[]).length + ' / ' + (s.total_clients||0);
       document.getElementById('kpiTotalSub').textContent = '差异: ' + (d.diff_count||0) + '\u53f0';
-      document.getElementById('dashUpdated').textContent = '\u66f4\u65b0: ' + new Date().toLocaleTimeString();
+      var fnow = (function(){ var n=new Date(), p=function(x){return (x<10?'0':'')+x;}; return n.getFullYear()+'-'+p(n.getMonth()+1)+'-'+p(n.getDate())+' '+p(n.getHours())+':'+p(n.getMinutes())+':'+p(n.getSeconds()); })();
+      document.getElementById('dashUpdated').textContent = '\u66f4\u65b0: ' + fnow;
 
       // Online panel
       var ol = d.online_list || [];
@@ -263,7 +264,7 @@
       document.getElementById('taskPanel').innerHTML = th;
 
       // Sync panel
-      var sh = '<div class="row"><div class="col-6"><strong>AD同步</strong>: '+(d.last_sync?esc(d.last_sync.substring(0,16).replace('T',' ')):'无')+'</div><div class="col-6"><strong>本周审计</strong>: '+(d.week_audit?d.week_audit.length:'0')+'条</div></div>';
+      var sh = '<div class="row"><div class="col-6"><strong>AD同步</strong>: '+(d.last_sync_fmt || '无')+'</div><div class="col-6"><strong>本周审计</strong>: '+(d.week_audit?d.week_audit.length:'0')+'条</div></div>';
 
       if(d.diff_count > 0) sh += '<div class="alert alert-warning py-1 mt-2 mb-0 small">⚠ '+esc(d.diff_count)+'台终端存在差异，<a href="?diff=1">前往处理 &rarr;</a></div>';
       document.getElementById('syncPanel').innerHTML = sh;
@@ -298,7 +299,7 @@
           if(!d.success){dropdown.innerHTML='<div class="adm-search-empty">搜索失败</div>';return;}
           var data = d.data;
           var html = '';
-          var total = (data.terminals||[]).length + (data.users||[]).length + (data.groups||[]).length;
+          var total = (data.terminals||[]).length + (data.computers||[]).length + (data.users||[]).length + (data.groups||[]).length;
           if(total === 0){
             dropdown.innerHTML = '<div class="adm-search-empty">未找到相关结果</div>';
             return;
@@ -311,6 +312,17 @@
                 '<div class="adm-search-item-text">'+
                 '<div class="adm-search-item-title">'+item.name+'</div>'+
                 '<div class="adm-search-item-meta">SN: '+item.serial+'</div>'+
+                '</div></a>';
+            });
+          }
+          if(data.computers && data.computers.length){
+            html += '<div class="adm-search-section">GLPI 计算机</div>';
+            data.computers.forEach(function(item){
+              html += '<a class="adm-search-item" href="'+item.url+'">'+
+                '<div class="adm-search-item-icon"><i class="ti ti-server"></i></div>'+
+                '<div class="adm-search-item-text">'+
+                '<div class="adm-search-item-title">'+item.name+'</div>'+
+                '<div class="adm-search-item-meta">GLPI #'+item.id+'</div>'+
                 '</div></a>';
             });
           }

@@ -56,8 +56,8 @@
         /* 元信息 */
         var meta = document.getElementById('syncMeta');
         if (meta) {
-          meta.textContent = d.last_sync
-            ? '上次同步：' + d.last_sync + ' 触发：' + (d.triggered_by || '—')
+          meta.textContent = d.last_sync_fmt
+            ? '上次同步：' + d.last_sync_fmt + ' 触发：' + (d.triggered_by || '—')
             : '尚未执行过同步';
         }
       })

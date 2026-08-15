@@ -97,7 +97,7 @@
             <td class="small">{{ c.os_name ?? '—' }}</td>
             <td class="small text-muted">{{ c.cpu ?? '—' }}</td>
             <td class="small">{{ c.memory_gb ? c.memory_gb ~ ' GB' : '—' }}</td>
-            <td class="small text-muted">{{ c.last_seen ? c.last_seen|slice(0,16)|replace({'T':' '}) : '—' }}</td>
+            <td class="small text-muted">{{ c.last_seen_fmt ?? '—' }}</td>
             <td>
               {% if online_serials is defined and c.serial is defined and attribute(online_serials, c.serial) is defined %}
                 <span class="badge bg-success"><i class="ti ti-wifi me-1"></i>在线</span>
@@ -224,8 +224,12 @@
   </div>
 </div>
 <script>
-var FASTAPI_SERVER_URL = '{{ (fastapi_server_url is defined and fastapi_server_url) ? fastapi_server_url : FASTAPI_URL }}';
-var FASTAPI_URL = '{{ (fastapi_url is defined and fastapi_url) ? fastapi_url : "http://127.0.0.1:8000" }}';
+var FASTAPI_URL = '{{ (fastapi_url is defined and fastapi_url) ? fastapi_url : "" }}';
+// 不再硬编码 127.0.0.1:8000（浏览器直连服务器回环在远程访问时必失败），
+// 缺省回退到当前页面来源，保证远程桌面 WebSocket 连到 GLPI 所在主机。
+if (!FASTAPI_URL) FASTAPI_URL = window.location.origin;
+var FASTAPI_SERVER_URL = '{{ (fastapi_server_url is defined and fastapi_server_url) ? fastapi_server_url : "" }}';
+if (!FASTAPI_SERVER_URL) FASTAPI_SERVER_URL = FASTAPI_URL;
 // ── 需求2：导出 ──────────────────────────────────────────────────────────
 function exportTableCsv() {
     var table = document.getElementById('importTable');
@@ -238,8 +242,10 @@ function exportTableCsv() {
     });
     rows.push(headers.join(','));
     // 数据行（只取可见行）
+    // 注：TableFilter 用 CSS class `adm-row-hidden` 隐藏行（非 inline style），
+    // 故用 offsetParent === null 统一判定“行被隐藏”，兼容 class 隐藏与 inline display:none。（修复问题②）
     table.querySelectorAll('tbody tr').forEach(function(tr) {
-        if (tr.style.display === 'none') return;
+        if (tr.offsetParent === null) return;
         var cells = [];
         tr.querySelectorAll('td').forEach(function(td, idx) {
             // 最后一列（操作）跳过
@@ -298,7 +304,7 @@ document.querySelectorAll('.sw-btn').forEach(function(btn) {
         html += '</tbody></table>';
         if (data.collected_at) {
           html += '<div class="text-muted text-end small p-2">采集时间：' +
-            escHtml(data.collected_at.substring(0,16).replace('T',' ')) + '</div>';
+            escHtml(data.collected_at_fmt || '') + '</div>';
         }
         document.getElementById('swModalBody').innerHTML = html;
       })

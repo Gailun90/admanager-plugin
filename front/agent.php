@@ -11,16 +11,11 @@
 include('../../../inc/includes.php');
 PluginAdmanagerProfile::checkRight('read', READ);
 
-// 获取 FastAPI 配置
-$fastapiCfg = PluginAdmanagerConfig::getFastApiConfig();
-$fastapiUrl  = rtrim($fastapiCfg['url'] ?? '', '/');
-$fastapiToken = $fastapiCfg['token'] ?? '';
-
-// 透传给前端 JS
+// 注意：本页【绝不】触碰 FastAPI 凭据。AI 对话统一走 agent_proxy.php 代理，
+// 由服务端持有并解密 token；agent_chat.js 也从不读取任何 fastapi_url/token，
+// 浏览器端无需亦不应拿到明文凭据。因此此处不 fetch 任何 FastAPI 配置。
 $jsConfig = json_encode([
-    'fastapi_url'   => $fastapiUrl,
-    'fastapi_token' => $fastapiToken,
-    'operator'      => PluginAdmanagerVuln::operator(),
+    'operator' => PluginAdmanagerVuln::operator(),
 ], JSON_UNESCAPED_UNICODE);
 
 $canWrite = Session::haveRight('plugin_admanager_deploy', CREATE)

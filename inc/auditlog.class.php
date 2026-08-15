@@ -38,7 +38,7 @@ class PluginAdmanagerAuditLog extends CommonDBTM
             'params'       => json_encode($params, JSON_UNESCAPED_UNICODE),
             'result'       => $success ? 1 : 0,
             'error_message'=> $error,
-            'ip_address'   => $_SERVER['REMOTE_ADDR'] ?? '',
+            'ip_address'   => PluginAdmanagerConfig::resolveClientIp(),
         ]);
     }
 

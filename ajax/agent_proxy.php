@@ -93,7 +93,7 @@ case 'chat':
     if (!isset($body['operator'])) {
         $body['operator'] = PluginAdmanagerVuln::operator();
     }
-    $body['client_ip'] = $_SERVER['REMOTE_ADDR'] ?? '';
+    $body['client_ip'] = PluginAdmanagerConfig::resolveClientIp();
 
     // 关键修复：鉴权/权限检查已完成，提前释放 PHP 会话文件锁，
     // 避免 900s SSE 长连接独占锁导致同会话其他 GLPI 页面长时间转圈

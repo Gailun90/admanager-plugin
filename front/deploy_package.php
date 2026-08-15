@@ -83,6 +83,7 @@ if (is_dir($pkgDir)) {
                 'filename' => basename(substr($statusFile, 0, -strlen('.status.json'))),
                 'error'    => $data['error'] ?? '未知错误',
                 'ts'       => $data['ts'] ?? '',
+                'ts_fmt'   => PluginAdmanagerTime::fmt($data['ts'] ?? null),
             ];
         }
     }

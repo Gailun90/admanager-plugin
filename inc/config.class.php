@@ -142,6 +142,47 @@ class PluginAdmanagerConfig extends CommonDBTM
     }
 
     /**
+     * 可信反向代理名单：直连或非名单来源一律回落 REMOTE_ADDR（即真实 IP）。
+     * 新增反代 / 负载均衡时只需在此追加，无需改动各调用点。
+     */
+    private const TRUSTED_PROXIES = ['127.0.0.1', '::1', '172.29.147.120'];
+
+    /**
+     * 解析真实客户端 IP（审计日志 / AI 对话审计共用，避免反代后全记成代理 IP）。
+     *
+     * 安全前提：本站前面只有可信的反向代理（nginx），nginx 以 $remote_addr
+     * 覆盖 X-Real-IP，客户端无法伪造。仅在 REMOTE_ADDR 命中可信名单时才信任
+     * X-Real-IP / X-Forwarded-For；直连或来源不可信时回落 REMOTE_ADDR（即真实 IP）。
+     *
+     * 此前该逻辑在 auditlog.class.php 与 agent_proxy.php 各写了一份（逐字相同），
+     * 现已统一到此单一真相源。
+     *
+     * @return string
+     */
+    public static function resolveClientIp(): string
+    {
+        $remote = $_SERVER['REMOTE_ADDR'] ?? '';
+        if (!in_array($remote, self::TRUSTED_PROXIES, true)) {
+            return $remote;
+        }
+        // 优先取 X-Real-IP（nginx 设置的连接对端，不可伪造）
+        $real = trim((string)($_SERVER['HTTP_X_REAL_IP'] ?? ''));
+        if ($real !== '' && filter_var($real, FILTER_VALIDATE_IP)) {
+            return $real;
+        }
+        // 退而取 X-Forwarded-For 最左段（原始客户端）。
+        // 用 explode 而非 strtok：避免 strtok 的全局静态指针在多次调用间串扰。
+        $xff = trim((string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+        if ($xff !== '') {
+            $first = trim(explode(',', $xff)[0]);
+            if (filter_var($first, FILTER_VALIDATE_IP)) {
+                return $first;
+            }
+        }
+        return $remote;
+    }
+
+    /**
      * 获取部署全局配置（合并默认值）
      */
     public static function getDeployConfig(): array

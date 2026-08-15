@@ -110,7 +110,7 @@
               {% endif %}
             </td>
             <td class="small text-muted">
-              {{ t.created_at ? t.created_at|slice(0,16)|replace({'T':' '}) : '—' }}
+              {{ t.created_at_fmt }}
             </td>
             <td>
               <div class="btn-group btn-group-xs">
@@ -224,7 +224,7 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
             + '<td><strong class="small">' + esc(r.hostname) + '</strong></td>'
             + '<td>' + badge(r.status) + '</td>'
             + '<td class="small text-muted text-center">' + (r.retry_count || 0) + '</td>'
-            + '<td class="small text-muted">' + (r.executed_at ? r.executed_at.substring(0,16).replace('T',' ') : '—') + '</td>'
+            + '<td class="small text-muted">' + (r.executed_at_fmt || '—') + '</td>'
             + '<td class="small' + (isFail ? ' text-danger fw-semibold' : ' text-muted') + '" style="max-width:500px;word-break:break-all;white-space:pre-wrap">' + esc(failMsg) + '</td>'
             + '<td>' + (r.install_log
                 ? '<button class="btn btn-xs btn-outline-info log-btn" data-host="' + esc(r.hostname) + '" data-log="' + esc(r.install_log) + '">查看</button>'
@@ -263,7 +263,7 @@ document.querySelectorAll('.task-detail-btn').forEach(function(btn) {
     .then(function(d){
       var e=function(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')};
       var b='<div class="mb-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="backToDetailBtn"><i class="ti ti-arrow-left me-1"></i>返回明细</button></div>';
-      b+='<table class="table table-sm table-bordered mb-3"><tr><td class="table-light" style="width:100px">名称</td><td>'+e(d.name)+'</td></tr><tr><td class="table-light">类型</td><td>'+e(d.task_type)+' / '+e(d.interpreter)+' / '+e(d.run_as)+' / '+(d.need_reboot?'需重启':'否')+'</td></tr><tr><td class="table-light">创建</td><td>'+(d.created_at?d.created_at.substring(0,19).replace('T',' '):'-')+'</td></tr></table>';
+      b+='<table class="table table-sm table-bordered mb-3"><tr><td class="table-light" style="width:100px">名称</td><td>'+e(d.name)+'</td></tr><tr><td class="table-light">类型</td><td>'+e(d.task_type)+' / '+e(d.interpreter)+' / '+e(d.run_as)+' / '+(d.need_reboot?'需重启':'否')+'</td></tr><tr><td class="table-light">创建</td><td>'+(d.created_at_fmt || '-')+'</td></tr></table>';
       if(d.uninstall_target)b+='<h6>卸载目标</h6><pre class="mb-3 p-2 bg-light rounded small">'+e(d.uninstall_target)+'</pre>';
       if(d.registry_ops)b+='<h6>注册表操作</h6><pre class="mb-3 p-2 bg-light rounded small" style="max-height:300px;overflow:auto">'+e(JSON.stringify(d.registry_ops,null,2))+'</pre>';
       if(d.command)b+='<h6>执行脚本</h6><pre class="p-3 rounded" style="max-height:500px;overflow:auto;font-size:.75rem;background:#1e1e2e;color:#e6e6e6;white-space:pre-wrap;word-break:break-all">'+e(d.command)+'</pre>';

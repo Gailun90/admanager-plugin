@@ -48,7 +48,9 @@ class PluginAdmanagerDeploy
             $dest, $safeName, $name, $version, $silentArgs, $desc,
             $fileSize, $cfg['url'], $cfg['token'],
         ]));
-        $phpBin = is_file('/usr/bin/php8.1') ? '/usr/bin/php8.1' : '/usr/bin/php';
+        // 使用当前 GLPI 进程所用解释器（PHP_BINARY），避免硬编码版本号在 PHP 升级后失效；
+        // 极端环境未定义时回退到 PATH 上的 php。
+        $phpBin = (defined('PHP_BINARY') && PHP_BINARY) ? PHP_BINARY : 'php';
         if (!is_executable($phpBin)) {
             PluginAdmanagerAuditLog::write(
                 'upload_package', 'package', $safeName, $safeName,
@@ -93,7 +95,7 @@ class PluginAdmanagerDeploy
     public static function getClients(): array {
         try {
             $res = PluginAdmanagerFastApiClient::getInstance()
-                ->getClientsAll(200);
+                ->get('/api/export/clients', ['page' => 1, 'limit' => 200]);
             $items = $res['items'] ?? [];
             // 统一字段名: client_id → id，前端模板全部用 id
             return array_map(function($c) {

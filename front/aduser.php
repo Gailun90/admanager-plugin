@@ -128,10 +128,11 @@ try {
         PluginAdmanagerAuditLog::write('search_ad_users', 'ADUser',
             $keyword ?: "(ou:{$ou})", $keyword ?: "(ou:{$ou})",
             ['result_count' => count($users), 'ou' => $ou, 'keyword' => $keyword]);
-        // 附加 IM 绑定信息
+        // 附加 IM 绑定信息 + 统一时间格式化（列表仅日期）
         foreach ($users as $k => $u) {
             $sam = strtolower($u['samaccountname'] ?? '');
             $users[$k]['im_bindings'] = $sam ? ($im_bindings_all[$sam] ?? []) : [];
+            $users[$k]['last_logon_fmt'] = PluginAdmanagerTime::fmt($u['last_logon_unix'] ?? null, false);
         }
     }
 
@@ -142,6 +143,14 @@ try {
         else {
             $sam = strtolower($detail_user['samaccountname'] ?? '');
             $detail_user['im_bindings'] = $sam ? ($im_bindings_all[$sam] ?? []) : [];
+            // 统一时间格式化（GLPI 日期格式 + 本地时区），覆盖 adldap 自带的非统一格式
+            $detail_user['last_logon_fmt']  = PluginAdmanagerTime::fmt($detail_user['last_logon_unix'] ?? null);
+            if (!empty($detail_user['pwdlastset']) && (int)$detail_user['pwdlastset'] > 0) {
+                $pwdUnix = intdiv((int)$detail_user['pwdlastset'], 10000000) - 11644473600;
+                $detail_user['pwdlastset_fmt'] = PluginAdmanagerTime::fmt($pwdUnix);
+            }
+            $detail_user['whencreated_fmt']  = PluginAdmanagerTime::fmt($detail_user['whencreated']  ?? null);
+            $detail_user['whenchanged_fmt'] = PluginAdmanagerTime::fmt($detail_user['whenchanged'] ?? null);
         }
     }
 

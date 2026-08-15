@@ -47,7 +47,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     fputcsv($out, ['时间', '操作人', '操作类型', '目标类型', '目标名称', '目标DN', '结果', '详情/参数']);
     foreach ($all_logs as $log) {
         fputcsv($out, [
-            $log['date_mod'],
+            PluginAdmanagerTime::fmt($log['date_mod']),
             ($log['users_id'] ?? 0) > 0 ? ($log['user_name'] ?? '') : '系统',
             $act_labels[$log['action_type']] ?? $log['action_type'],
             $log['target_type'],
@@ -63,6 +63,11 @@ if (($_GET['export'] ?? '') === 'csv') {
 
 $offset = ($page - 1) * $limit;
 $logs   = PluginAdmanagerAuditLog::getLogsWithNames($filters, $limit, $offset);
+// 统一时间格式化（GLPI 日期格式 + 本地时区），供模板 _fmt 字段使用
+foreach ($logs as &$log) {
+    $log['date_mod_fmt'] = PluginAdmanagerTime::fmt($log['date_mod']);
+}
+unset($log);
 $total  = PluginAdmanagerAuditLog::countLogs($filters);
 $pages  = max(1, (int)ceil($total / $limit));
 

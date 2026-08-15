@@ -2,7 +2,7 @@
 /**
  * setup.php — admanager 插件注册入口 v1.0.0
  */
-define('PLUGIN_ADMANAGER_VERSION',  '1.0.0');
+define('PLUGIN_ADMANAGER_VERSION',  '6.0.0');
 define('PLUGIN_ADMANAGER_MIN_GLPI', '10.0.0');
 define('PLUGIN_ADMANAGER_MAX_GLPI', '10.2.99');
 define('PLUGIN_ADMANAGER_DIR',     Plugin::getPhpDir('admanager'));

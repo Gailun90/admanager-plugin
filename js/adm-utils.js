@@ -5,6 +5,64 @@
 window.AdManager = window.AdManager || {};
 
 /* ============================================
+   CSRF 工具（统一取 token + 注入 + 续签）
+   替代 vuln.js / agent_chat.js / config.js 各自重复实现的 CSRF-fetch 逻辑。
+   不同页面承载 token 的字段不同：GLPI 标准 input[name="_glpi_csrf_token"]，
+   或插件自定义 #agent-csrf / #vuln-csrf。多源读取保证任一布局都能取到。
+   ============================================ */
+(function () {
+  // 按优先级匹配页面上存在的 CSRF token 字段
+  var CSRF_SELECTORS = [
+    'input[name="_glpi_csrf_token"]',
+    '#agent-csrf',
+    '#vuln-csrf',
+    '#_glpi_csrf_token'
+  ];
+
+  // 读取当前页面有效的 CSRF token（DOM 为唯一真相源，每次实时读取）
+  AdManager.getCsrfToken = function () {
+    for (var i = 0; i < CSRF_SELECTORS.length; i++) {
+      var el = document.querySelector(CSRF_SELECTORS[i]);
+      if (el && el.value) return el.value;
+    }
+    return '';
+  };
+
+  // 把一次性 token 续签写回所有匹配字段（GLPI 每次响应可能回吐新 token）
+  AdManager.renewCsrf = function (data) {
+    if (!data) return;
+    var tok = data._csrf || data.csrf_token;
+    if (!tok) return;
+    for (var i = 0; i < CSRF_SELECTORS.length; i++) {
+      var el = document.querySelector(CSRF_SELECTORS[i]);
+      if (el) el.value = tok;
+    }
+  };
+
+  // 统一 fetch 封装：自动带 X-Glpi-Csrf-Token header；
+  // 若 body 为 FormData 则同时写入 _glpi_csrf_token 表单字段
+  // （兼容按 POST 体校验的端点）。返回原生 fetch 的 Promise<Response>。
+  AdManager.csrfFetch = function (url, options) {
+    options = options || {};
+    var headers = {};
+    if (options.headers) {
+      for (var k in options.headers) {
+        if (Object.prototype.hasOwnProperty.call(options.headers, k)) {
+          headers[k] = options.headers[k];
+        }
+      }
+    }
+    var tok = AdManager.getCsrfToken();
+    headers['X-Glpi-Csrf-Token'] = tok;
+    if (options.body && typeof FormData !== 'undefined' && options.body instanceof FormData) {
+      options.body.set('_glpi_csrf_token', tok);
+    }
+    options.headers = headers;
+    return fetch(url, options);
+  };
+})();
+
+/* ============================================
    Toast 消息
    ============================================ */
 AdManager.Toast = (function() {
@@ -383,10 +441,17 @@ AdManager.Progress = (function() {
 document.addEventListener('DOMContentLoaded', function() {
     // 侧边栏已禁用 — 恢复标签页导航
     // AdManager.Sidebar.init();
-    // 自动初始化表格排序
-    AdManager.TableSort.init();
-    // 自动初始化表格筛选
-    AdManager.TableFilter.init();
+
+    // 仅在本插件页面（/plugins/admanager/ 路径下）启用表格排序/筛选。
+    // 否则 ADD_JAVASCRIPT 会把 adm-utils.js 加载到 GLPI 原生列表页，
+    // 给 GLPI 自带的表格再注入一个“输入关键词筛选”框，
+    // 与 GLPI 原生搜索栏叠加 → 出现“两个搜索框”。（修复问题①）
+    if (window.location.pathname.indexOf('/plugins/admanager/') !== -1) {
+        // 自动初始化表格排序
+        AdManager.TableSort.init();
+        // 自动初始化表格筛选
+        AdManager.TableFilter.init();
+    }
 });
 
 window.toast = AdManager.Toast;

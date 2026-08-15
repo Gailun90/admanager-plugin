@@ -16,11 +16,6 @@
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" href="/plugins/admanager/front/agent_triggers.php">
-        <i class="ti ti-robot me-1"></i>AI 定时任务
-      </a>
-    </li>
-    <li class="nav-item">
       <a class="nav-link" href="/plugins/admanager/front/deploy_config.php">
         <i class="ti ti-settings-cog me-1"></i>部署配置
       </a>
@@ -167,6 +162,7 @@
     if (!window.TomSelect) return;
     if (!tsGroup && document.getElementById('groupSelectInput')) {
       tsGroup = new TomSelect('#groupSelectInput', {
+        wrapperClass: 'ts-wrapper form-select-sm',
         placeholder: '搜索分组名称…', allowEmptyOption: true,
         maxOptions: 200, searchField: ['text'],
         // 选中项后不隐藏输入框，避免 .input-hidden 把控件压成 6px
@@ -175,6 +171,7 @@
     }
     if (!tsClient && document.getElementById('clientSelectInput')) {
       tsClient = new TomSelect('#clientSelectInput', {
+        wrapperClass: 'ts-wrapper form-select-sm',
         placeholder: '搜索主机名或序列号…', allowEmptyOption: true,
         maxOptions: 500, searchField: ['text','value'],
         hidePlaceholder: false,

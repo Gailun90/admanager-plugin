@@ -550,6 +550,14 @@ document.getElementById('inclDist').addEventListener('change', searchGroups);
 loadOUs();
 searchGroups();
 
+/* ── 全局搜索深链：?dn= 直接打开指定安全组 ── */
+var _deepDn = new URLSearchParams(location.search).get('dn');
+if (_deepDn) {
+    GET({action:'detail', dn:_deepDn}).then(function(d){
+        if (d.ok && d.data) { renderGroupDetail(d.data); }
+    }).catch(function(){});
+}
+
 {% endverbatim %}
 })();
 </script>

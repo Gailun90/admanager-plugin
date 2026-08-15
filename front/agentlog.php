@@ -19,6 +19,8 @@ $filters = [
     'session_id' => trim($_GET['session_id'] ?? ''),
     'operator'   => trim($_GET['operator']   ?? ''),
     'role'       => trim($_GET['role']       ?? ''),
+    'start_date' => trim($_GET['start_date'] ?? ''),
+    'end_date'   => trim($_GET['end_date']   ?? ''),
 ];
 $page   = max(1, (int)($_GET['page'] ?? 1));
 $limit  = 200;
@@ -63,6 +65,8 @@ try {
             'session_id' => $filters['session_id'],
             'operator'   => $filters['operator'],
             'role'       => $filters['role'],
+            'start'      => $filters['start_date'],
+            'end'        => $filters['end_date'],
             'limit'      => $limit,
             'offset'     => $offset,
         ]));
@@ -110,6 +114,8 @@ $baseQ   = array_filter([
     'session_id' => $filters['session_id'],
     'operator'   => $filters['operator'],
     'role'       => $filters['role'],
+    'start_date' => $filters['start_date'],
+    'end_date'   => $filters['end_date'],
 ]);
 $prevUrl = '?' . http_build_query($baseQ + ['page' => max(1, $page - 1)]);
 $nextUrl = '?' . http_build_query($baseQ + ['page' => min($pages, $page + 1)]);

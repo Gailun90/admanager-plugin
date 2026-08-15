@@ -123,6 +123,12 @@
 }
 .ts-wrapper.form-select-sm .ts-control {
     min-height: 31px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+.ts-wrapper.form-select-sm .ts-control input {
+    font-size: 0.875rem;
 }
 
 /* 通用表单控件最小宽度 */

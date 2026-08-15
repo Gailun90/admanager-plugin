@@ -7,6 +7,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'software' && isset($_GET['cli
     header('Content-Type: application/json');
     try {
         $data = PluginAdmanagerFastApiClient::getInstance()->getClientSoftware((int)$_GET['client_id']);
+        if (is_array($data)) {
+            $data['collected_at_fmt'] = PluginAdmanagerTime::fmt($data['collected_at'] ?? null);
+        }
         echo json_encode($data);
     } catch (Exception $e) {
         http_response_code(500);
@@ -265,6 +268,10 @@ foreach ($clients as $k => $c) {
         $clients[$k]['current_user_sam'] = $sam;
         $clients[$k]['im_bindings'] = $im_bindings_all[$sam] ?? [];
     }
+}
+// 统一时间格式化（GLPI 日期格式 + 本地时区）
+foreach ($clients as $k => $c) {
+    $clients[$k]['last_seen_fmt'] = PluginAdmanagerTime::fmt($c['last_seen'] ?? null);
 }
 
 // 合并：diff_list 记录用 FastAPI 数据补全
